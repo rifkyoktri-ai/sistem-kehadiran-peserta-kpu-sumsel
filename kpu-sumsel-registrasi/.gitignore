@@ -1,0 +1,21 @@
+# Dependensi Node.js
+node_modules/
+
+# File database SQLite (berisi data peserta — tidak boleh di-commit)
+backend/database/kpu_registrasi.db
+backend/database/kpu_registrasi.db-shm
+backend/database/kpu_registrasi.db-wal
+
+# File environment (berisi password dan konfigurasi sensitif)
+.env
+
+# Build output frontend
+frontend/dist/
+
+# Log file
+*.log
+npm-debug.log*
+
+# File sistem operasi
+.DS_Store
+Thumbs.db
