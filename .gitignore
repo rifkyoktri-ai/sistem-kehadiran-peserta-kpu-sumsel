@@ -1,0 +1,15 @@
+node_modules/
+dist/
+.env
+*.log
+.DS_Store
+Thumbs.db
+
+# SQLite database
+*.db
+*.db-shm
+*.db-wal
+
+# Backend backup & uploads
+kpu-sumsel-registrasi/backend/backup/
+kpu-sumsel-registrasi/backend/uploads/photos/

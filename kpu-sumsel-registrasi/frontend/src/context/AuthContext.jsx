@@ -1,29 +1,28 @@
-// =============================================================================
-// AUTH CONTEXT – Menyimpan password sesi login selama halaman terbuka
-// =============================================================================
-
-import React, { createContext, useContext, useState } from 'react';
+import { createContext, useContext, useState } from 'react';
 
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
-  const [password, setPassword] = useState('');
+  const [token, setToken] = useState('');
   const [level, setLevel] = useState('');
+  const [acaraId, setAcaraId] = useState('');
 
-  const login = (pwd, lvl) => {
-    setPassword(pwd);
+  const login = (jwtToken, lvl, acId) => {
+    setToken(jwtToken);
     setLevel(lvl);
+    setAcaraId(acId || '');
   };
 
   const logout = () => {
-    setPassword('');
+    setToken('');
     setLevel('');
+    setAcaraId('');
   };
 
-  const isAuthenticated = password !== '' && level !== '';
+  const isAuthenticated = token !== '' && level !== '';
 
   return (
-    <AuthContext.Provider value={{ password, level, login, logout, isAuthenticated }}>
+    <AuthContext.Provider value={{ token, level, acaraId, login, logout, isAuthenticated }}>
       {children}
     </AuthContext.Provider>
   );

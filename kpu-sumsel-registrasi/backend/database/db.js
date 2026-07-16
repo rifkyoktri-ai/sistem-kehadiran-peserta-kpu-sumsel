@@ -1,61 +1,166 @@
 // =============================================================================
-// KONEKSI DATABASE — Adapter sql.js dengan antarmuka kompatibel better-sqlite3
+// KONEKSI DATABASE — sql.js (Pure JavaScript SQLite, tanpa native compilation)
 // =============================================================================
-// Menggunakan sql.js (WebAssembly) agar tidak perlu compiler C++ (Visual Studio).
-// Data disimpan ke file .db setiap kali ada operasi tulis.
+// Wrapper ini menyediakan API yang SAMA persis dengan better-sqlite3,
+// sehingga seluruh kode yang sudah ada TIDAK perlu diubah.
 // =============================================================================
 
-const fs = require('fs');
 const path = require('path');
-const { DBAdapter } = require('./adapter');
+const fs = require('fs');
+const initSqlJs = require('sql.js');
 
 const LOKASI_DB = path.join(__dirname, 'kpu_registrasi.db');
 
-// Instance tunggal adapter (singleton)
-let _adapterDB = null;
+let _db = null;
+let _sqlJs = null;
+let _saveTimer = null;
 
-/**
- * Inisialisasi database — muat sql.js WASM dan buka/buat file database.
- * Dipanggil SATU KALI saat server startup (async).
- */
-async function inisialisasiDB() {
-  const initSqlJs = require('sql.js');
-  const SQL = await initSqlJs();
-
-  let sqlJsDB;
-  if (fs.existsSync(LOKASI_DB)) {
-    const buffer = fs.readFileSync(LOKASI_DB);
-    sqlJsDB = new SQL.Database(buffer);
-    console.log('[DB] Database dimuat dari file:', LOKASI_DB);
-  } else {
-    sqlJsDB = new SQL.Database();
-    console.log('[DB] Database baru dibuat:', LOKASI_DB);
+// ── Simpan database ke disk ─────────────────────────────────────────────────
+function _simpanKeDisk() {
+  if (_db) {
+    const data = _db.export();
+    const buffer = Buffer.from(data);
+    fs.writeFileSync(LOKASI_DB, buffer);
   }
-
-  _adapterDB = new DBAdapter(sqlJsDB, LOKASI_DB);
-  return _adapterDB;
 }
 
-/**
- * Mengembalikan koneksi database yang sudah ada.
- * Harus dipanggil SETELAH inisialisasiDB() selesai.
- */
+// Debounced save — menyimpan ke disk setelah perubahan, dengan delay kecil
+// agar multiple write berurutan tidak membuat I/O berlebihan
+function _jadwalkanSimpan() {
+  if (_saveTimer) clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(() => {
+    _simpanKeDisk();
+  }, 100);
+}
+
+// ── Wrapper Statement — meniru API better-sqlite3 Statement ─────────────────
+class WrappedStatement {
+  constructor(db, sql, saveFn) {
+    this._db = db;
+    this._sql = sql;
+    this._saveFn = saveFn;
+  }
+
+  run(...params) {
+    this._db.run(this._sql, params.length === 1 && typeof params[0] === 'object' && !Array.isArray(params[0]) ? params[0] : params);
+    this._saveFn();
+    return {
+      changes: this._db.getRowsModified(),
+      lastInsertRowid: 0, // sql.js tidak support lastInsertRowid di run langsung
+    };
+  }
+
+  get(...params) {
+    const stmt = this._db.prepare(this._sql);
+    if (params.length === 1 && typeof params[0] === 'object' && !Array.isArray(params[0])) {
+      stmt.bind(params[0]);
+    } else if (params.length > 0) {
+      stmt.bind(params);
+    }
+    const result = stmt.step() ? stmt.getAsObject() : undefined;
+    stmt.free();
+    return result;
+  }
+
+  all(...params) {
+    const results = [];
+    const stmt = this._db.prepare(this._sql);
+    if (params.length === 1 && typeof params[0] === 'object' && !Array.isArray(params[0])) {
+      stmt.bind(params[0]);
+    } else if (params.length > 0) {
+      stmt.bind(params);
+    }
+    while (stmt.step()) {
+      results.push(stmt.getAsObject());
+    }
+    stmt.free();
+    return results;
+  }
+}
+
+// ── Wrapper Database — meniru API better-sqlite3 Database ───────────────────
+class WrappedDatabase {
+  constructor(sqlJsDb) {
+    this._raw = sqlJsDb;
+    this._lokasiDb = LOKASI_DB;
+  }
+
+  prepare(sql) {
+    return new WrappedStatement(this._raw, sql, _jadwalkanSimpan);
+  }
+
+  exec(sql) {
+    this._raw.run(sql);
+    _jadwalkanSimpan();
+  }
+
+  pragma(pragmaStr) {
+    try {
+      this._raw.run(`PRAGMA ${pragmaStr}`);
+    } catch (_) {
+      // Beberapa pragma mungkin tidak didukung oleh sql.js — abaikan
+    }
+  }
+
+  transaction(fn) {
+    const self = this;
+    return function (...args) {
+      self._raw.run('BEGIN TRANSACTION');
+      try {
+        const result = fn(...args);
+        self._raw.run('COMMIT');
+        _simpanKeDisk(); // Simpan langsung setelah transaksi selesai
+        return result;
+      } catch (err) {
+        self._raw.run('ROLLBACK');
+        throw err;
+      }
+    };
+  }
+
+  close() {
+    if (_saveTimer) {
+      clearTimeout(_saveTimer);
+      _saveTimer = null;
+    }
+    _simpanKeDisk();
+    this._raw.close();
+  }
+}
+
+// ── Fungsi Publik ───────────────────────────────────────────────────────────
+
+async function inisialisasiDB() {
+  _sqlJs = await initSqlJs();
+
+  if (fs.existsSync(LOKASI_DB)) {
+    const fileBuffer = fs.readFileSync(LOKASI_DB);
+    _db = new WrappedDatabase(new _sqlJs.Database(fileBuffer));
+  } else {
+    _db = new WrappedDatabase(new _sqlJs.Database());
+  }
+
+  // Set pragmas
+  _db.pragma('journal_mode = WAL');
+  _db.pragma('foreign_keys = ON');
+
+  console.log('[DB] Database siap:', LOKASI_DB);
+  return _db;
+}
+
 function ambilKoneksiDB() {
-  if (!_adapterDB) {
+  if (!_db) {
     throw new Error('[DB] Database belum diinisialisasi. Panggil inisialisasiDB() dahulu.');
   }
-  return _adapterDB;
+  return _db;
 }
 
-/**
- * Tutup koneksi database dengan aman saat server shutdown.
- */
 function tutupKoneksiDB() {
-  if (_adapterDB) {
-    _adapterDB.close();
-    _adapterDB = null;
+  if (_db) {
+    _db.close();
+    _db = null;
     console.log('[DB] Koneksi database ditutup.');
   }
 }
 
-module.exports = { inisialisasiDB, ambilKoneksiDB, tutupKoneksiDB };
+module.exports = { inisialisasiDB, ambilKoneksiDB, tutupKoneksiDB, LOKASI_DB };

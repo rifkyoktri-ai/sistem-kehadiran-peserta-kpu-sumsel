@@ -14,15 +14,17 @@ import Admin      from './pages/Admin';
 export default function App() {
   return (
     <AppProvider>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/"                  element={<Registrasi />} />
-          <Route path="/konfirmasi/:id"     element={<Konfirmasi />} />
-          <Route path="/cek-status"        element={<CekStatus />} />
-          <Route path="/checkin"           element={<CheckIn />} />
-          <Route path="/admin"             element={<Admin />} />
-        </Routes>
-      </BrowserRouter>
+      <AuthProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/"                  element={<Registrasi />} />
+            <Route path="/konfirmasi/:id"     element={<Konfirmasi />} />
+            <Route path="/cek-status"        element={<CekStatus />} />
+            <Route path="/checkin"           element={<CheckIn />} />
+            <Route path="/admin"             element={<Admin />} />
+          </Routes>
+        </BrowserRouter>
+      </AuthProvider>
     </AppProvider>
   );
 }

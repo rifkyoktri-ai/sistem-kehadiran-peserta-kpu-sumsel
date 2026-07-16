@@ -3,9 +3,11 @@ import { useParams, Link } from 'react-router-dom';
 import { API_BASE_URL } from '../constants';
 import { generateQRCode } from '../utils/generateQR';
 import { downloadIDCard } from '../utils/generatePDF';
+import { cetakIDCard } from '../utils/printIDCard';
 import StatusBadge from '../components/StatusBadge';
 import HeaderUtama from '../components/HeaderUtama';
 import TombolPrimer from '../components/TombolPrimer';
+import IDCard from '../components/IDCard';
 
 export default function Konfirmasi() {
   const { id } = useParams();
@@ -111,37 +113,22 @@ export default function Konfirmasi() {
               </table>
             </div>
 
-            {/* Visual Preview ID Card (Mini) */}
+            {/* Visual Preview ID Card */}
             <div className="mb-8">
               <p className="text-center font-display font-semibold text-[#003580] mb-4">Preview ID Card</p>
-              <div className="border border-[#E2E8F0] rounded-xl overflow-hidden shadow-sm mx-auto max-w-sm bg-white" style={{ aspectRatio: '1.414' }}>
-                <div className="h-1.5" style={{ background: 'linear-gradient(90deg, #C8972A 0%, #E8B84B 50%, #C8972A 100%)' }}></div>
-                <div className="bg-[#003580] text-white px-4 py-3 flex items-center justify-between">
-                  <span className="font-display font-bold text-[10px] tracking-wide">KPU PROVINSI SUMATERA SELATAN</span>
-                </div>
-                <div className="p-5 flex flex-col justify-between h-[calc(100%-42px)]">
-                  <div className="text-center">
-                    <h4 className="font-display font-bold text-xs text-[#003580] tracking-widest">TANDA PESERTA</h4>
-                    <p className="font-display font-bold text-[9px] text-[#0D1B3E] uppercase truncate mt-1">{acara?.nama_acara || 'KEGIATAN KPU'}</p>
-                  </div>
-                  <div className="flex items-center justify-between mt-4">
-                    <div className="space-y-1.5 text-[10px] w-2/3">
-                      <div><span className="text-[#5A6A8A] font-semibold block text-[8px]">ID Peserta</span><span className="font-mono font-bold text-[#003580]">{peserta.id}</span></div>
-                      <div><span className="text-[#5A6A8A] font-semibold block text-[8px]">Nama</span><span className="font-bold text-[#0D1B3E] truncate block max-w-full">{peserta.nama_lengkap.toUpperCase()}</span></div>
-                      <div><span className="text-[#5A6A8A] font-semibold block text-[8px]">Instansi</span><span className="truncate block max-w-full text-[#0D1B3E]">{peserta.instansi}</span></div>
-                    </div>
-                    <div className="w-1/3 flex justify-end">
-                      {qrCodeUrl ? <img src={qrCodeUrl} alt="QR Code ID" className="h-24 w-24 p-0.5 border-2 border-[#E2E8F0] rounded" /> : <div className="h-24 w-24 border-2 bg-gray-100 rounded"></div>}
-                    </div>
-                  </div>
-                </div>
+              <div className="flex justify-center">
+                <IDCard peserta={{ ...peserta, nama_acara: acara?.nama_acara, tanggal_acara: acara?.tanggal_acara, lokasi_acara: acara?.lokasi_acara }} acaraInfo={acara} />
               </div>
             </div>
 
             {/* Actions */}
             <div className="space-y-4">
-              <TombolPrimer onClick={handleUnduhPDF} fullWidth={true} varian="primer" ukuran="lg">
-                ⬇ UNDUH ID CARD PDF
+              <TombolPrimer onClick={async () => { try { await cetakIDCard(); } catch (e) { alert(e.message); } }} fullWidth={true} varian="primer" ukuran="lg">
+                🖨 CETAK ID CARD
+              </TombolPrimer>
+              
+              <TombolPrimer onClick={handleUnduhPDF} fullWidth={true} varian="outline" ukuran="lg">
+                ⬇ UNDUH PDF (QR)
               </TombolPrimer>
               
               <Link to="/cek-status" className="block">

@@ -1,61 +1,88 @@
 // =============================================================================
-// MIDDLEWARE AUTENTIKASI — Sistem Registrasi KPU Provinsi Sumatera Selatan
-// =============================================================================
-// Password dikirim via HTTP header: x-password
-// Level akses:
-//   - petugas : dapat mengakses endpoint check-in
-//   - admin   : dapat mengakses semua endpoint termasuk manajemen data
+// MIDDLEWARE AUTENTIKASI — Dual auth: JWT (Bearer) + Password header (legacy)
 // =============================================================================
 
-const { PASSWORD_PETUGAS, PASSWORD_ADMIN } = require('../constants');
+const { ambilKoneksiDB } = require('../database/db');
+const { PASSWORD_ADMIN } = require('../constants');
+const { verifikasiToken } = require('../utils/jwt');
 
-/**
- * Memformat response penolakan autentikasi secara konsisten.
- */
 function tolakAkses(res) {
   return res.status(401).json({
     sukses: false,
-    pesan : 'Akses ditolak. Password tidak valid.',
-    data  : null,
+    pesan: 'Akses ditolak. Token atau password tidak valid.',
+    data: null,
   });
 }
 
 /**
- * Middleware untuk endpoint level petugas.
- * Menerima password petugas ATAU password admin.
- * Admin dapat mengakses semua yang bisa diakses petugas.
+ * Mencoba autentikasi via JWT Bearer token.
+ * Mengembalikan { aktor, acaraId } jika sukses, atau null.
  */
-function authPetugas(req, res, next) {
-  const passwordDiterima = req.headers['x-password'];
-
-  const passwordValid =
-    passwordDiterima === PASSWORD_PETUGAS ||
-    passwordDiterima === PASSWORD_ADMIN;
-
-  if (!passwordValid) {
-    return tolakAkses(res);
+function cobaJwt(req) {
+  const authHeader = req.headers['authorization'];
+  if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
+  try {
+    const payload = verifikasiToken(authHeader.slice(7));
+    return { aktor: payload.aktor, acaraId: payload.acara_id || null };
+  } catch {
+    return null;
   }
-
-  // Tandai siapa yang mengakses (untuk keperluan audit log)
-  req.aktor = passwordDiterima === PASSWORD_ADMIN ? 'admin' : 'petugas';
-
-  return next();
 }
 
 /**
- * Middleware untuk endpoint level admin.
- * Hanya menerima password admin.
+ * Mencoba autentikasi via x-password header (legacy).
  */
-function authAdmin(req, res, next) {
+function cobaPasswordPetugas(req) {
   const passwordDiterima = req.headers['x-password'];
+  const acaraIdDiterima = req.headers['x-acara-id'];
+  if (!passwordDiterima || !acaraIdDiterima) return null;
 
-  if (passwordDiterima !== PASSWORD_ADMIN) {
-    return tolakAkses(res);
+  if (passwordDiterima === PASSWORD_ADMIN) {
+    return { aktor: 'admin', acaraId: acaraIdDiterima || null };
   }
 
-  req.aktor = 'admin';
+  try {
+    const db = ambilKoneksiDB();
+    const acara = db.prepare('SELECT password_petugas FROM acara WHERE id = ?').get(acaraIdDiterima);
+    if (acara && passwordDiterima === acara.password_petugas) {
+      return { aktor: 'petugas', acaraId: acaraIdDiterima };
+    }
+  } catch { /* lanjut ke tolak */ }
+  return null;
+}
 
-  return next();
+function authPetugas(req, res, next) {
+  const jwtResult = cobaJwt(req);
+  if (jwtResult) {
+    req.aktor = jwtResult.aktor;
+    req.acaraId = jwtResult.acaraId;
+    return next();
+  }
+
+  const pwdResult = cobaPasswordPetugas(req);
+  if (pwdResult) {
+    req.aktor = pwdResult.aktor;
+    req.acaraId = pwdResult.acaraId;
+    return next();
+  }
+
+  return tolakAkses(res);
+}
+
+function authAdmin(req, res, next) {
+  const jwtResult = cobaJwt(req);
+  if (jwtResult && jwtResult.aktor === 'admin') {
+    req.aktor = 'admin';
+    return next();
+  }
+
+  const passwordDiterima = req.headers['x-password'];
+  if (passwordDiterima && passwordDiterima === PASSWORD_ADMIN) {
+    req.aktor = 'admin';
+    return next();
+  }
+
+  return tolakAkses(res);
 }
 
 module.exports = { authPetugas, authAdmin };

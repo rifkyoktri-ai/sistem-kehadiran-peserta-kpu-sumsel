@@ -1,6 +1,15 @@
-import { useRef, useState } from 'react';
+import { useState, useRef } from 'react';
 import StatusBadge from './StatusBadge';
-import TombolPrimer from './TombolPrimer';
+import ModalKonfirmasi from './ModalKonfirmasi';
+import ModalEditPeserta from './ModalEditPeserta';
+import ModalIDCard from './ModalIDCard';
+
+function authHeader(password) {
+  if (password && password.startsWith('eyJ')) {
+    return { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + password };
+  }
+  return { 'Content-Type': 'application/json', 'x-password': password };
+}
 
 export default function TabelPeserta({
   peserta = [],
@@ -14,21 +23,16 @@ export default function TabelPeserta({
 }) {
   const totalHalaman = Math.ceil(total / perHalaman) || 1;
   const [aksiLoading, setAksiLoading] = useState(null);
-  const [hapusKonfirm, setHapusKonfirm] = useState(null);
+
+  // Modal state
+  const [hapusTarget, setHapusTarget] = useState(null);
+  const [editTarget, setEditTarget] = useState(null);
+  const [editLoading, setEditLoading] = useState(false);
+  const [idCardTarget, setIdCardTarget] = useState(null);
+  const fotoInputRef = useRef(null);
+  const [fotoUploadingId, setFotoUploadingId] = useState(null);
 
   const handleAksi = async (id, jenisAksi) => {
-    if (jenisAksi === 'hapus') {
-      if (hapusKonfirm !== id) {
-        setHapusKonfirm(id);
-        setTimeout(() => setHapusKonfirm(null), 4000);
-        return;
-      }
-      setHapusKonfirm(null);
-      if (!confirm('⚠️ PERINGATAN: Data akan dihapus PERMANEN!\\n\\nSemua data peserta termasuk audit log akan hilang.\\n\\nLanjutkan?')) return;
-    } else {
-      if (!confirm(`Yakin ingin ${jenisAksi === 'batalkan' ? 'membatalkan' : 'menandai hadir'} peserta ini?`)) return;
-    }
-    
     setAksiLoading(id);
     try {
       let url = '';
@@ -48,10 +52,7 @@ export default function TabelPeserta({
 
       const res = await fetch(url, {
         method,
-        headers: {
-          'Content-Type': 'application/json',
-          'x-password': passwordAdmin
-        },
+        headers: authHeader(passwordAdmin),
         body
       });
 
@@ -67,8 +68,98 @@ export default function TabelPeserta({
     setAksiLoading(null);
   };
 
+  const handleEditSimpan = async (perubahan) => {
+    if (!editTarget) return;
+    setEditLoading(true);
+    try {
+      const res = await fetch(`/api/admin/peserta/${editTarget.id}`, {
+        method: 'PUT',
+        headers: authHeader(passwordAdmin),
+        body: JSON.stringify(perubahan),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setEditTarget(null);
+        if (onRefresh) onRefresh();
+      } else {
+        alert(data.pesan || 'Gagal mengedit data.');
+      }
+    } catch {
+      alert('Gagal terhubung ke server.');
+    }
+    setEditLoading(false);
+  };
+
+  const handleFotoUpload = async (id, file) => {
+    if (!file) return;
+    setFotoUploadingId(id);
+    try {
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        const foto_base64 = e.target.result;
+        const auth = passwordAdmin?.startsWith('eyJ')
+          ? { 'Authorization': 'Bearer ' + passwordAdmin }
+          : { 'x-password': passwordAdmin };
+        const res = await fetch(`/api/peserta/${id}/foto`, {
+          method: 'POST',
+          headers: { ...auth, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ foto_base64 }),
+        });
+        const data = await res.json();
+        if (res.ok && onRefresh) onRefresh();
+        else alert(data.pesan || 'Gagal upload foto.');
+      };
+      reader.readAsDataURL(file);
+    } catch {
+      alert('Gagal terhubung ke server.');
+    }
+    setFotoUploadingId(null);
+  };
+
   return (
     <div className="bg-white rounded-2xl shadow-card border border-[#E2E8F0] overflow-hidden flex flex-col">
+      <ModalKonfirmasi
+        terbuka={hapusTarget !== null}
+        judul="Hapus Permanen?"
+        pesan={`Data peserta "${hapusTarget?.nama_lengkap}" (${hapusTarget?.id}) akan dihapus permanen termasuk audit log. Tindakan ini tidak bisa dibatalkan.`}
+        tombolKonfirmasi="Ya, Hapus"
+        varian="merah"
+        onKonfirmasi={() => {
+          const target = hapusTarget;
+          setHapusTarget(null);
+          handleAksi(target.id, 'hapus');
+        }}
+        onBatal={() => setHapusTarget(null)}
+      />
+
+      <ModalEditPeserta
+        terbuka={editTarget !== null}
+        peserta={editTarget}
+        onSimpan={handleEditSimpan}
+        onBatal={() => setEditTarget(null)}
+        simpanLoading={editLoading}
+      />
+
+      <ModalIDCard
+        terbuka={idCardTarget !== null}
+        peserta={idCardTarget}
+        onTutup={() => setIdCardTarget(null)}
+      />
+
+      {/* Hidden file input untuk upload foto */}
+      <input
+        ref={fotoInputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        className="hidden"
+        onChange={(e) => {
+          const id = fotoInputRef.current?.dataset?.pesertaId;
+          const file = e.target.files?.[0];
+          if (id && file) handleFotoUpload(id, file);
+          e.target.value = '';
+        }}
+      />
+
       {loading ? (
         <div className="p-12 flex flex-col items-center justify-center">
           <div className="h-10 w-10 border-4 border-[#EEF2F7] border-t-[#003580] rounded-full animate-spin mb-4"></div>
@@ -115,8 +206,34 @@ export default function TabelPeserta({
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        {(p.status === 'terdaftar' || p.status === 'hadir') && (
-                          <button 
+                          <button
+                            onClick={() => setEditTarget(p)}
+                            disabled={aksiLoading === p.id}
+                            className="bg-[#EEF2F7] text-[#003580] hover:bg-[#003580] hover:text-white px-3 py-1.5 rounded text-xs font-bold transition disabled:opacity-50"
+                            title="Edit Data Peserta"
+                          >
+                            ⚙ Edit
+                          </button>
+                          <button
+                            onClick={() => {
+                              fotoInputRef.current.dataset.pesertaId = p.id;
+                              fotoInputRef.current.click();
+                            }}
+                            disabled={fotoUploadingId === p.id}
+                            className="bg-[#FFF7ED] text-[#C2410C] hover:bg-[#C2410C] hover:text-white px-3 py-1.5 rounded text-xs font-bold transition disabled:opacity-50"
+                            title="Upload Foto"
+                          >
+                            {fotoUploadingId === p.id ? '⏳' : '📷'} Foto
+                          </button>
+                          <button
+                            onClick={() => setIdCardTarget(p)}
+                            className="bg-[#FEF9C3] text-[#A16207] hover:bg-[#A16207] hover:text-white px-3 py-1.5 rounded text-xs font-bold transition"
+                            title="Lihat & Cetak ID Card"
+                          >
+                            🪪 ID
+                          </button>
+                          {(p.status === 'terdaftar' || p.status === 'hadir') && (
+                          <button
                             onClick={() => handleAksi(p.id, 'batalkan')}
                             disabled={aksiLoading === p.id}
                             className="bg-[#FEE2E2] text-[#B91C1C] hover:bg-[#DC2626] hover:text-white px-3 py-1.5 rounded text-xs font-bold transition disabled:opacity-50"
@@ -126,7 +243,7 @@ export default function TabelPeserta({
                           </button>
                         )}
                         {p.status === 'terdaftar' && (
-                          <button 
+                          <button
                             onClick={() => handleAksi(p.id, 'hadirkan')}
                             disabled={aksiLoading === p.id}
                             className="bg-[#DCFCE7] text-[#15803D] hover:bg-[#16A34A] hover:text-white px-3 py-1.5 rounded text-xs font-bold transition disabled:opacity-50"
@@ -135,17 +252,13 @@ export default function TabelPeserta({
                             ✓ Hadir
                           </button>
                         )}
-                        <button 
-                          onClick={() => handleAksi(p.id, 'hapus')}
+                        <button
+                          onClick={() => setHapusTarget(p)}
                           disabled={aksiLoading === p.id}
-                          className={`px-3 py-1.5 rounded text-xs font-bold transition disabled:opacity-50 ${
-                            hapusKonfirm === p.id
-                              ? 'bg-[#DC2626] text-white animate-pulse'
-                              : 'bg-gray-100 text-gray-500 hover:bg-red-100 hover:text-red-600'
-                          }`}
+                          className="bg-gray-100 text-gray-500 hover:bg-red-100 hover:text-red-600 px-3 py-1.5 rounded text-xs font-bold transition disabled:opacity-50"
                           title="Hapus permanen"
                         >
-                          {hapusKonfirm === p.id ? 'Klik lagi untuk konfirmasi' : '🗑 Hapus'}
+                          🗑 Hapus
                         </button>
                       </div>
                     </td>
@@ -164,7 +277,6 @@ export default function TabelPeserta({
             </table>
           </div>
 
-          {/* Pagination */}
           {total > 0 && (
             <div className="bg-white border-t border-[#E2E8F0] px-6 py-4 flex items-center justify-between">
               <span className="text-sm text-[#5A6A8A] font-body">

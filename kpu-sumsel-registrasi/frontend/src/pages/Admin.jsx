@@ -4,6 +4,7 @@ import TabelPeserta from '../components/TabelPeserta';
 import HeaderUtama from '../components/HeaderUtama';
 import TombolPrimer from '../components/TombolPrimer';
 import StatusBadge from '../components/StatusBadge';
+import { useAuth } from '../context/AuthContext';
 
 function LoginForm({ onLogin }) {
   const [username, setUsername] = useState('');
@@ -26,7 +27,11 @@ function LoginForm({ onLogin }) {
         setError(data.pesan || 'Login gagal.');
         return;
       }
-      onLogin(password);
+      if (data.data && data.data.token) {
+        onLogin(data.data.token, data.data.level);
+      } else {
+        onLogin(password);
+      }
     } catch {
       setError('Tidak dapat terhubung ke server.');
     } finally {
@@ -100,19 +105,21 @@ function Dashboard({ password, onLogout }) {
   const [feedback, setFeedback] = useState('');
   const [tanggalHariIni, setTanggalHariIni] = useState('');
 
-  useEffect(() => {
-    setTanggalHariIni(new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }));
-    fetch('/api/admin/rekap', { headers: { 'x-password': password } })
-      .then((r) => r.ok ? r.json() : Promise.reject())
-      .then((d) => setRekap(d.data || d))
-      .catch(() => setError('Gagal memuat rekap'))
-      .finally(() => setLoading(false));
-  }, [password]);
+  // Sesi Multi-Acara
+  const [daftarAcara, setDaftarAcara] = useState([]);
+  const [idAcaraSelected, setIdAcaraSelected] = useState('');
+
+  const ubahHeader = (h) => {
+    if (password.startsWith('eyJ')) {
+      return { ...h, 'Authorization': 'Bearer ' + password, 'Content-Type': 'application/json' };
+    }
+    return { ...h, 'x-password': password, 'Content-Type': 'application/json' };
+  };
 
   const apiFetch = async (url, options = {}) => {
     const resp = await fetch(url, {
       ...options,
-      headers: { ...options.headers, 'x-password': password, 'Content-Type': 'application/json' },
+      headers: ubahHeader(options.headers || {}),
     });
     if (!resp.ok) {
       let msg = 'Gagal';
@@ -122,15 +129,67 @@ function Dashboard({ password, onLogout }) {
     return resp.json();
   };
 
-  const handleExportCSV = async () => {
+  const muatDaftarAcara = async () => {
     try {
-      const resp = await fetch('/api/admin/export-csv', { headers: { 'x-password': password } });
+      const data = await apiFetch('/api/admin/acara');
+      const list = data.data || [];
+      setDaftarAcara(list);
+      
+      // Jika belum ada yang dipilih, pilih yang aktif
+      const activeAcara = list.find(ac => ac.adalah_aktif);
+      if (activeAcara) {
+        setIdAcaraSelected(activeAcara.id);
+      } else if (list.length > 0) {
+        setIdAcaraSelected(list[0].id);
+      }
+    } catch {
+      setFeedback('❌ Gagal memuat daftar acara.');
+    }
+  };
+
+  const authHeaders = () => password.startsWith('eyJ')
+    ? { 'Authorization': 'Bearer ' + password }
+    : { 'x-password': password };
+
+  const muatRekap = () => {
+    if (!idAcaraSelected) return;
+    fetch(`/api/admin/rekap?id_acara=${idAcaraSelected}`, { headers: authHeaders() })
+      .then((r) => r.ok ? r.json() : Promise.reject())
+      .then((d) => setRekap(d.data || d))
+      .catch(() => setError('Gagal memuat rekap'))
+      .finally(() => setLoading(false));
+  };
+
+  // Load daftar acara pertama kali
+  useEffect(() => {
+    setTanggalHariIni(new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }));
+    muatDaftarAcara();
+  }, [password]);
+
+  // Refetch rekap saat acara yang dipilih berubah atau interval 30s berjalan
+  useEffect(() => {
+    if (idAcaraSelected) {
+      setLoading(true);
+      muatRekap();
+      const interval = setInterval(() => {
+        muatRekap();
+      }, 30000); // 30 detik
+      return () => clearInterval(interval);
+    }
+  }, [password, idAcaraSelected]);
+
+  const handleExportCSV = async () => {
+    if (!idAcaraSelected) return;
+    try {
+      const resp = await fetch(`/api/admin/export-csv?id_acara=${idAcaraSelected}`, { headers: authHeaders() });
       if (!resp.ok) throw new Error('Gagal export');
       const blob = await resp.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'peserta-kpu-sumsel.csv';
+      const targetAcara = daftarAcara.find(ac => ac.id === idAcaraSelected);
+      const filename = targetAcara ? `peserta_${targetAcara.nama_acara.replace(/[^a-zA-Z0-9]/g, '_')}.csv` : 'peserta.csv';
+      a.download = filename;
       a.click();
       URL.revokeObjectURL(url);
       setFeedback('✅ CSV berhasil di-download.');
@@ -151,9 +210,10 @@ function Dashboard({ password, onLogout }) {
   };
 
   const muatPeserta = async (hal = 1, cari = '') => {
+    if (!idAcaraSelected) return;
     setLoadingPeserta(true);
     try {
-      const params = new URLSearchParams({ halaman: hal, per_halaman: 20 });
+      const params = new URLSearchParams({ halaman: hal, per_halaman: 20, id_acara: idAcaraSelected });
       if (cari) params.set('search', cari);
       const data = await apiFetch('/api/admin/peserta?' + params.toString());
       setPeserta(data.data.peserta);
@@ -166,10 +226,11 @@ function Dashboard({ password, onLogout }) {
   };
 
   const muatAuditLog = async () => {
+    if (!idAcaraSelected) return;
     setLoadingAudit(true);
     try {
-      const data = await apiFetch('/api/admin/audit-log');
-      setAuditLog(data.data || []);
+      const data = await apiFetch(`/api/admin/audit-log?id_acara=${idAcaraSelected}`);
+      setAuditLog(data.data.logs || data.data || []);
     } catch {
       setFeedback('❌ Gagal memuat audit log.');
     }
@@ -179,11 +240,12 @@ function Dashboard({ password, onLogout }) {
   useEffect(() => {
     if (tab === 'peserta') muatPeserta(1, pesertaSearch);
     if (tab === 'audit') muatAuditLog();
-  }, [tab]);
+  }, [tab, idAcaraSelected]);
 
   const tabs = [
     { key: 'rekap', label: '📊 Rekap', desc: 'Ringkasan data acara' },
     { key: 'peserta', label: '👥 Peserta', desc: 'Manajemen data peserta' },
+    { key: 'kelola-acara', label: '📅 Kelola Acara', desc: 'Daftar & buat acara baru' },
     { key: 'pengaturan', label: '⚙ Pengaturan', desc: 'Konfigurasi acara KPU' },
     { key: 'audit', label: '📋 Audit Log', desc: 'Riwayat aktivitas sistem' },
   ];
@@ -194,10 +256,26 @@ function Dashboard({ password, onLogout }) {
 
       <div className="flex-1 flex overflow-hidden">
         {/* SIDEBAR */}
-        <aside className="w-[240px] bg-[#001f5b] min-h-full flex flex-col shrink-0 overflow-y-auto">
+        <aside className="w-[260px] bg-[#001f5b] min-h-full flex flex-col shrink-0 overflow-y-auto">
           <div className="p-6 border-b border-white/10">
             <h2 className="text-white font-display font-bold text-lg">Menu Admin</h2>
             <p className="text-white/60 text-xs mt-1">Sistem Registrasi KPU</p>
+          </div>
+
+          {/* Pemilih Acara */}
+          <div className="px-6 py-4 border-b border-white/10">
+            <label className="block text-white/50 text-[10px] font-bold uppercase tracking-wider mb-2">Pilih Acara</label>
+            <select 
+              value={idAcaraSelected}
+              onChange={(e) => setIdAcaraSelected(e.target.value)}
+              className="w-full h-10 bg-white/10 text-white border border-white/20 rounded-lg px-2 text-xs focus:outline-none focus:border-[#C8972A]"
+            >
+              {daftarAcara.map(ac => (
+                <option key={ac.id} value={ac.id} className="text-[#1F1A17]">
+                  {ac.nama_acara} ({ac.kode_acara})
+                </option>
+              ))}
+            </select>
           </div>
           
           <nav className="flex-1 py-4">
@@ -353,6 +431,23 @@ function Dashboard({ password, onLogout }) {
               </div>
             )}
 
+            {/* Tab Kelola Acara */}
+            {tab === 'kelola-acara' && (
+              <div className="animate-[slideUp_250ms_ease-out]">
+                <div className="flex items-center gap-3 mb-6 relative">
+                  <div className="absolute left-[-16px] top-0 bottom-0 w-1 bg-[#C8972A]"></div>
+                  <h3 className="font-display font-bold text-2xl text-[#0D1B3E]">Manajemen Multi-Acara</h3>
+                </div>
+                <KelolaAcaraPanel 
+                  password={password} 
+                  apiFetch={apiFetch} 
+                  onRefresh={muatDaftarAcara} 
+                  currentActiveId={idAcaraSelected} 
+                  setFeedback={setFeedback} 
+                />
+              </div>
+            )}
+
             {/* Tab Pengaturan Acara */}
             {tab === 'pengaturan' && (
               <div className="animate-[slideUp_250ms_ease-out]">
@@ -360,7 +455,12 @@ function Dashboard({ password, onLogout }) {
                   <div className="absolute left-[-16px] top-0 bottom-0 w-1 bg-[#C8972A]"></div>
                   <h3 className="font-display font-bold text-2xl text-[#0D1B3E]">Pengaturan Acara</h3>
                 </div>
-                <PengaturanForm password={password} onSuccess={() => setFeedback('✅ Pengaturan berhasil disimpan!')} onError={() => setFeedback('❌ Gagal menyimpan pengaturan.')} />
+                <PengaturanForm 
+                  password={password} 
+                  idAcara={idAcaraSelected}
+                  onSuccess={() => setFeedback('✅ Pengaturan berhasil disimpan!')} 
+                  onError={() => setFeedback('❌ Gagal menyimpan pengaturan.')} 
+                />
               </div>
             )}
 
@@ -431,18 +531,24 @@ function Dashboard({ password, onLogout }) {
   );
 }
 
-function PengaturanForm({ password, onSuccess, onError }) {
+function PengaturanForm({ password, idAcara, onSuccess, onError }) {
   const [form, setForm] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
+  const authHeaders = () => password.startsWith('eyJ')
+    ? { 'Authorization': 'Bearer ' + password }
+    : { 'x-password': password };
+
   useEffect(() => {
-    fetch('/api/admin/pengaturan', { headers: { 'x-password': password } })
+    if (!idAcara) return;
+    setLoading(true);
+    fetch(`/api/admin/pengaturan?id_acara=${idAcara}`, { headers: authHeaders() })
       .then((r) => r.ok ? r.json() : Promise.reject())
       .then((d) => setForm(d.data || {}))
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [password]);
+  }, [password, idAcara]);
 
   const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
   
@@ -452,8 +558,8 @@ function PengaturanForm({ password, onSuccess, onError }) {
     try {
       const resp = await fetch('/api/admin/pengaturan', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'x-password': password },
-        body: JSON.stringify(form),
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        body: JSON.stringify({ ...form, id_acara: idAcara }),
       });
       if (!resp.ok) throw new Error();
       if (onSuccess) onSuccess();
@@ -479,6 +585,7 @@ function PengaturanForm({ password, onSuccess, onError }) {
           <Field label="Kuota Maksimal" name="kuota_maksimal" value={form.kuota_maksimal || '500'} onChange={handleChange} type="number" />
           <Field label="Deadline Registrasi" name="deadline_registrasi" value={form.deadline_registrasi || ''} onChange={handleChange} type="date" />
         </div>
+        <Field label="Password Petugas Lapangan" name="password_petugas" value={form.password_petugas || ''} onChange={handleChange} />
         
         <div className="pt-4 border-t border-[#E2E8F0]">
           <label className="block text-sm font-display font-semibold text-[#0D1B3E] mb-3">Status Registrasi Sistem</label>
@@ -504,6 +611,233 @@ function PengaturanForm({ password, onSuccess, onError }) {
   );
 }
 
+function KelolaAcaraPanel({ password, apiFetch, onRefresh, currentActiveId, setFeedback }) {
+  const [listAcara, setListAcara] = useState([]);
+  const [loading, setLoading] = useState(true);
+  
+  // Form State
+  const [kodeAcara, setKodeAcara] = useState('');
+  const [namaAcara, setNamaAcara] = useState('');
+  const [tanggalAcara, setTanggalAcara] = useState('');
+  const [waktuAcara, setWaktuAcara] = useState('08:00');
+  const [lokasiAcara, setLokasiAcara] = useState('');
+  const [kuotaMaksimal, setKuotaMaksimal] = useState(500);
+  const [deadlineRegistrasi, setDeadlineRegistrasi] = useState('');
+  const [passwordPetugas, setPasswordPetugas] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const muatAcara = async () => {
+    setLoading(true);
+    try {
+      const data = await apiFetch('/api/admin/acara');
+      setListAcara(data.data || []);
+    } catch {
+      setFeedback('❌ Gagal memuat daftar acara.');
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    muatAcara();
+  }, []);
+
+  const handleCreate = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      const resp = await fetch('/api/admin/acara', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        body: JSON.stringify({
+          kode_acara: kodeAcara,
+          nama_acara: namaAcara,
+          tanggal_acara: tanggalAcara,
+          waktu_acara: waktuAcara,
+          lokasi_acara: lokasiAcara,
+          kuota_maksimal: kuotaMaksimal,
+          deadline_registrasi: deadlineRegistrasi,
+          password_petugas: passwordPetugas
+        })
+      });
+      const data = await resp.json();
+      if (!resp.ok) {
+        setFeedback(`❌ ${data.pesan || 'Gagal membuat acara.'}`);
+      } else {
+        setFeedback('✅ Acara baru berhasil dibuat!');
+        setKodeAcara('');
+        setNamaAcara('');
+        setTanggalAcara('');
+        setWaktuAcara('08:00');
+        setLokasiAcara('');
+        setKuotaMaksimal(500);
+        setDeadlineRegistrasi('');
+        setPasswordPetugas('');
+        muatAcara();
+        if (onRefresh) onRefresh();
+      }
+    } catch {
+      setFeedback('❌ Tidak dapat menghubungi server.');
+    }
+    setSaving(false);
+  };
+
+  const handleSetActive = async (id) => {
+    try {
+      const resp = await fetch('/api/admin/acara/aktif', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        body: JSON.stringify({ id_acara: id })
+      });
+      if (resp.ok) {
+        setFeedback('✅ Acara aktif berhasil diubah!');
+        muatAcara();
+        if (onRefresh) onRefresh();
+      } else {
+        setFeedback('❌ Gagal mengaktifkan acara.');
+      }
+    } catch {
+      setFeedback('❌ Gagal mengaktifkan acara.');
+    }
+  };
+
+  const generateRandomPassword = () => {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    let pass = 'KPU';
+    for (let i = 0; i < 6; i++) {
+      pass += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    setPasswordPetugas(pass);
+  };
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="lg:col-span-2 space-y-6">
+        <div className="bg-white rounded-2xl shadow-card border border-[#E2E8F0] p-6">
+          <h3 className="font-display font-semibold text-lg text-[#0D1B3E] mb-4">Semua Acara</h3>
+          {loading ? (
+            <p className="text-gray-500 animate-pulse">Memuat daftar acara...</p>
+          ) : listAcara.length === 0 ? (
+            <p className="text-gray-500">Belum ada acara terdaftar.</p>
+          ) : (
+            <div className="space-y-4">
+              {listAcara.map((ac) => (
+                <div key={ac.id} className={`p-5 rounded-xl border transition-all ${ac.adalah_aktif ? 'border-[#D8241C] bg-[#FCEDED]' : 'border-[#E2E8F0] bg-white'}`}>
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-xs px-2 py-0.5 bg-[#1F1A17] text-white rounded font-bold">{ac.kode_acara}</span>
+                        {ac.adalah_aktif && (
+                          <span className="text-xs px-2 py-0.5 bg-[#D8241C] text-white rounded font-bold">AKTIF REGISTRASI</span>
+                        )}
+                      </div>
+                      <h4 className="font-display font-bold text-lg text-[#1F1A17] mt-2">{ac.nama_acara}</h4>
+                      <p className="text-sm text-[#6B5A5A] font-body mt-1">📅 {ac.tanggal_acara} | 📍 {ac.lokasi_acara}</p>
+                      <p className="text-xs text-[#9CA3AF] mt-2">Password Petugas: <code className="font-mono font-bold text-[#1F1A17]">{ac.password_petugas}</code></p>
+                    </div>
+                    <div>
+                      {!ac.adalah_aktif && (
+                        <button 
+                          onClick={() => handleSetActive(ac.id)}
+                          className="px-3 py-1.5 bg-[#D2B704] text-[#1F1A17] hover:bg-[#E8CC20] font-display font-bold text-xs rounded-lg transition-all shadow-sm"
+                        >
+                          SET AKTIF
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="bg-white rounded-2xl shadow-card border border-[#E2E8F0] p-6 h-fit">
+        <h3 className="font-display font-semibold text-lg text-[#0D1B3E] mb-4">Buat Acara Baru</h3>
+        <form onSubmit={handleCreate} className="space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-[#1F1A17] mb-1">Kode Acara (Prefix ID)</label>
+            <input 
+              type="text" value={kodeAcara} onChange={(e) => setKodeAcara(e.target.value)}
+              placeholder="Contoh: PILKADA26" required
+              className="w-full h-10 border border-[#E2E8F0] rounded-lg px-3 text-sm focus:outline-none focus:border-[#D8241C]"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-[#1F1A17] mb-1">Nama Acara</label>
+            <input 
+              type="text" value={namaAcara} onChange={(e) => setNamaAcara(e.target.value)}
+              placeholder="Nama acara lengkap" required
+              className="w-full h-10 border border-[#E2E8F0] rounded-lg px-3 text-sm focus:outline-none focus:border-[#D8241C]"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-[#1F1A17] mb-1">Tanggal</label>
+              <input 
+                type="date" value={tanggalAcara} onChange={(e) => setTanggalAcara(e.target.value)} required
+                className="w-full h-10 border border-[#E2E8F0] rounded-lg px-3 text-sm focus:outline-none focus:border-[#D8241C]"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-[#1F1A17] mb-1">Waktu</label>
+              <input 
+                type="time" value={waktuAcara} onChange={(e) => setWaktuAcara(e.target.value)} required
+                className="w-full h-10 border border-[#E2E8F0] rounded-lg px-3 text-sm focus:outline-none focus:border-[#D8241C]"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-[#1F1A17] mb-1">Lokasi</label>
+            <input 
+              type="text" value={lokasiAcara} onChange={(e) => setLokasiAcara(e.target.value)}
+              placeholder="Lokasi pelaksanaan" required
+              className="w-full h-10 border border-[#E2E8F0] rounded-lg px-3 text-sm focus:outline-none focus:border-[#D8241C]"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-[#1F1A17] mb-1">Kuota Max</label>
+              <input 
+                type="number" value={kuotaMaksimal} onChange={(e) => setKuotaMaksimal(parseInt(e.target.value))} required
+                className="w-full h-10 border border-[#E2E8F0] rounded-lg px-3 text-sm focus:outline-none focus:border-[#D8241C]"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-[#1F1A17] mb-1">Deadline Reg (Optional)</label>
+              <input 
+                type="date" value={deadlineRegistrasi} onChange={(e) => setDeadlineRegistrasi(e.target.value)}
+                className="w-full h-10 border border-[#E2E8F0] rounded-lg px-3 text-sm focus:outline-none focus:border-[#D8241C]"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-[#1F1A17] mb-1">Password Petugas</label>
+            <div className="flex gap-2">
+              <input 
+                type="text" value={passwordPetugas} onChange={(e) => setPasswordPetugas(e.target.value)}
+                placeholder="Password check-in petugas" required
+                className="w-full h-10 border border-[#E2E8F0] rounded-lg px-3 text-sm focus:outline-none focus:border-[#D8241C]"
+              />
+              <button 
+                type="button" onClick={generateRandomPassword}
+                className="px-3 bg-gray-100 border border-[#E2E8F0] hover:bg-gray-200 text-xs font-bold rounded-lg"
+              >
+                Acak
+              </button>
+            </div>
+          </div>
+          <div className="pt-2">
+            <TombolPrimer type="submit" varian="primer" disabled={saving} fullWidth={true}>
+              {saving ? 'MEMPROSES...' : 'BUAT ACARA'}
+            </TombolPrimer>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 function Field({ label, name, value, onChange, type = 'text' }) {
   return (
     <div>
@@ -517,11 +851,12 @@ function Field({ label, name, value, onChange, type = 'text' }) {
 }
 
 export default function Admin() {
-  const [token, setToken] = useState('');
+  const { token, level, login, logout, isAuthenticated } = useAuth();
+  const [localToken, setLocalToken] = useState(token);
 
-  if (!token) {
-    return <LoginForm onLogin={(pwd) => setToken(pwd)} />;
+  if (!isAuthenticated && !localToken) {
+    return <LoginForm onLogin={(pwd, lvl) => { login(pwd, lvl); setLocalToken(pwd); }} />;
   }
 
-  return <Dashboard password={token} onLogout={() => setToken('')} />;
+  return <Dashboard password={localToken || token} onLogout={() => { logout(); setLocalToken(''); }} />;
 }

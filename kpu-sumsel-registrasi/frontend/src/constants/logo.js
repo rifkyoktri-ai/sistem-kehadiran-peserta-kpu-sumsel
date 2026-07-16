@@ -1,16 +1,9 @@
 // Logo resmi KPU Provinsi Sumatera Selatan
 // Disimpan di public/ agar bisa diakses sebagai file statis
-const LOGOKPU_URL = '/logo.png';
-const LOGOKPU_BASE64 = '/logo.png';
+export const LOGOKPU_URL = '/logo.png';
+export const LOGOKPU_BASE64 = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAK8AAADICAYAAACeY7GXAAAACXBIWXMAAAsTAAALEwEAmpwYAAAgAElEQVR42ux9BVhU2/c2KBh0d2NiF9iJhd2SShmAAQoiYLdggy12d2CL3d2t1+sN773+zGtcFda33j0MEgMyyjG+v+d5tuAwc+acfd691rtyqwwfPlzl58g8PDy6FqhetYpR7eou1WonWnkbamlmtsfa3OiUjZnJXYDK1hxgs0llwNG3G+L73+H1POGB4/m+Z/P99+vQtk19ng/jMJ6Xn+D9TkZwUJC6j6dnsZZuzZs3qFs7lKXRHAcby/0snX7jB8ggNaH/v4Gat2GDYS5A/Ygpz2HnyhUSa7pUG8jz1srb06Mkz2Phn+CVeAT6+2uwFKlXp2b1IRbGhrugSr8LcJibkJWpMQ8j4oUj/o/XHawtsr23uJ01VS5XhlwqV6BaLtWoQe2a1LhBPSpTsliu55efU6Lrf25pYri/aqXyo5o0aujq5eGu8xO8Xzh69Oih1q5160q1a1SPgCGDSZYKfPzwBPBKONhSSQe7NEAa5enz+NyKZUvpr78e0ZP//Y+eP39GL1+8oNevX1Mbt2aZvmdy3ERSdHTzdFd4blzD+DGjacqkWIoaFE4B3X0E6CUG8yv+3kNVKpYf0rZNK5eePXoU/gneT0nWAH8DqLJqlcqPdbSx3CcVWOUDQO0T1IvWr11Dt2/dYtA9pw8f3lNKSgo9e/aUTp86SaOHD6NSjnZC9eZ0HgDs8KGDCkEZHtY/0/tu3byh8H3unTrkeO6Hv/6a6b3Dh8YoBC9ea82LZcTQITRzxnSaPmUyDY4YSB3bteYFaSsW2ReA+TAbtpPYOOwQGBBg+r0Yhd/0yzu0a2vPNCAMk2PLvCw/QIkHbm9lTmVLFc9R0rrWr0O/3L9PeTn+/PMPqs3SLqfvg9Q+feqUws8uXDA//X2NG9TN8Ts6tGml8Ny8iOntmzeffC+AuXrF8hzP/++//9LcWTPzrE0+waFT+Dxn+LlFd2rfrvT/GfD2CAgwatKoQSdexXOYJ162ySfAli9dgoJ6BtLsmQl04vgx+t/jx1SnhrPC93p07khv3rzO9oA/fPggVH1qamq2v129fFkASeFiYiq8vYv/2Vd2v2D7Z9cFJdO3jK9fZ7JcQhU7x+2uQKJQzZVqjO5M2dUuI5cVQ8V6l4t1eKq1O5cL5WwVb3uJXfGvN3wUeLzQ3O2E6tG/8g7q4bG9b8h0R8YQyFjE5n8wAA==';
+export const LOGO_KPU_BASE64 = LOGOKPU_BASE64;
 
-async function getLogoBase64() {
-  const resp = await fetch(LOGOKPU_URL);
-  const blob = await resp.blob();
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.readAsDataURL(blob);
-  });
+export async function getLogoBase64() {
+  return LOGOKPU_BASE64;
 }
-
-export { LOGOKPU_URL, LOGOKPU_BASE64, getLogoBase64 };

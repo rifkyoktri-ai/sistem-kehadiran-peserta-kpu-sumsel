@@ -3,9 +3,11 @@ import { Link } from 'react-router-dom';
 import { API_BASE_URL } from '../constants';
 import { generateQRCode } from '../utils/generateQR';
 import { downloadIDCard } from '../utils/generatePDF';
+import { cetakIDCard } from '../utils/printIDCard';
 import StatusBadge from '../components/StatusBadge';
 import HeaderUtama from '../components/HeaderUtama';
 import TombolPrimer from '../components/TombolPrimer';
+import IDCard from '../components/IDCard';
 
 export default function CekStatus() {
   const [email, setEmail] = useState('');
@@ -36,7 +38,11 @@ export default function CekStatus() {
     setPeserta(null);
 
     try {
-      const res = await fetch(`${API_BASE_URL}/peserta/cek/${encodeURIComponent(email.trim())}`);
+      const res = await fetch(`${API_BASE_URL}/peserta/cek-status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim() }),
+      });
       const resJson = await res.json();
 
       if (res.status === 404) {
@@ -135,9 +141,16 @@ export default function CekStatus() {
                   <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-2 text-[#C8972A]">◆</div>
                 </div>
 
-                <div className="flex justify-start">
-                  <TombolPrimer onClick={handleUnduhUlang} disabled={unduhLoading} varian="outline">
-                    {unduhLoading ? 'MENYIAPKAN PDF...' : '⬇ UNDUH ULANG ID CARD'}
+                <div className="flex justify-center mb-6">
+                  <IDCard peserta={{ ...peserta, nama_acara: acara?.nama_acara, tanggal_acara: acara?.tanggal_acara, lokasi_acara: acara?.lokasi_acara }} acaraInfo={acara} />
+                </div>
+
+                <div className="flex flex-col gap-3">
+                  <TombolPrimer onClick={async () => { try { await cetakIDCard(); } catch (e) { alert(e.message); } }} varian="primer" fullWidth>
+                    🖨 CETAK ID CARD
+                  </TombolPrimer>
+                  <TombolPrimer onClick={handleUnduhUlang} disabled={unduhLoading} varian="outline" fullWidth>
+                    {unduhLoading ? 'MENYIAPKAN PDF...' : '⬇ UNDUH PDF (QR)'}
                   </TombolPrimer>
                 </div>
               </div>

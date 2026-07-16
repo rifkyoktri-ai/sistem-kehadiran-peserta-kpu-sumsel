@@ -2,7 +2,7 @@
 // KONSTANTA FRONTEND — Sistem Registrasi KPU Provinsi Sumatera Selatan
 // =============================================================================
 
-export const API_BASE_URL = 'http://localhost:3001/api';
+export const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
 export const LABEL_STATUS = {
   terdaftar  : 'Terdaftar',
@@ -19,5 +19,6 @@ export const WARNA_STATUS = {
 };
 
 export const NAMA_APLIKASI = 'Sistem Registrasi KPU Sumsel';
-export const KPU_BLUE = '#D8241C'; // Updated to KPU red
-export const KPU_GOLD = '#C8972A';
+export const KPU_RED  = '#D8241C';
+export const KPU_BLUE = '#003580';
+export const KPU_GOLD = '#D2B704';

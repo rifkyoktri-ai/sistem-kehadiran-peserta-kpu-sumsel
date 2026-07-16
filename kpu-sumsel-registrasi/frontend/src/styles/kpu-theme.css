@@ -1,0 +1,277 @@
+:root {
+  --kpu-maroon:         #6B0F1A;
+  --kpu-maroon-dark:    #4A0A10;
+  --kpu-maroon-deeper:  #3A0708;
+  --kpu-maroon-mid:     #2A0508;
+  --kpu-gold:           #C8930A;
+  --kpu-gold-light:     #FFD700;
+  --kpu-gold-pale:      #F5D060;
+  --kpu-gold-muted:     rgba(200,147,10,0.12);
+  --kpu-gold-border:    rgba(200,147,10,0.35);
+
+  --kpu-grad-bg:        linear-gradient(135deg,#2A0508 0%,#4A0A10 40%,#6B0F1A 70%,#3A0708 100%);
+  --kpu-grad-header:    linear-gradient(135deg,#4A0A10 0%,#6B0F1A 100%);
+  --kpu-grad-navbar:    linear-gradient(90deg,#2A0508 0%,#4A0A10 50%,#3A0708 100%);
+  --kpu-grad-card:      linear-gradient(135deg,#6B0F1A,#4A0A10);
+  --kpu-grad-gold:      linear-gradient(90deg,transparent,#C8930A,#FFD700,#C8930A,transparent);
+  --kpu-grad-btn:       linear-gradient(135deg,#6B0F1A 0%,#4A0A10 100%);
+}
+
+/* Pola titik halus — tambahkan di dalam div yang punya background maroon */
+.kpu-dots {
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(
+    circle, rgba(200,147,10,0.07) 1px, transparent 1px
+  );
+  background-size: 20px 20px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Garis shimmer atas */
+.kpu-shimmer-top {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg,
+    transparent, rgba(255,215,0,0.5), transparent
+  );
+  pointer-events: none;
+}
+
+/* Garis gold bawah section */
+.kpu-line-gold {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 2px;
+  background: var(--kpu-grad-gold);
+  pointer-events: none;
+}
+
+/* Lingkaran dekorasi pojok — BG harus relative/overflow:hidden */
+.kpu-circle-deco::before {
+  content: '';
+  position: absolute;
+  width: 280px; height: 280px;
+  border-radius: 50%;
+  border: 1px solid rgba(200,147,10,0.1);
+  top: -100px; left: -80px;
+  pointer-events: none;
+}
+.kpu-circle-deco::after {
+  content: '';
+  position: absolute;
+  width: 180px; height: 180px;
+  border-radius: 50%;
+  border: 1px solid rgba(200,147,10,0.07);
+  bottom: -60px; right: -50px;
+  pointer-events: none;
+}
+
+/* Glow efek tengah — untuk login/landing */
+.kpu-glow {
+  position: absolute;
+  width: 250px; height: 250px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle, rgba(200,147,10,0.07) 0%, transparent 70%
+  );
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+/* Ornamen sudut — tambahkan 4 div.corner-X ke parent relative */
+.kpu-corner { position: absolute; width: 18px; height: 18px; }
+.kpu-corner-tl { top:14px; left:14px; border-top:1.5px solid rgba(200,147,10,0.4); border-left:1.5px solid rgba(200,147,10,0.4); }
+.kpu-corner-tr { top:14px; right:14px; border-top:1.5px solid rgba(200,147,10,0.4); border-right:1.5px solid rgba(200,147,10,0.4); }
+.kpu-corner-bl { bottom:14px; left:14px; border-bottom:1.5px solid rgba(200,147,10,0.4); border-left:1.5px solid rgba(200,147,10,0.4); }
+.kpu-corner-br { bottom:14px; right:14px; border-bottom:1.5px solid rgba(200,147,10,0.4); border-right:1.5px solid rgba(200,147,10,0.4); }
+
+/* Tombol Primary */
+.btn-kpu {
+  background: var(--kpu-grad-btn);
+  border: 1.5px solid var(--kpu-gold);
+  color: var(--kpu-gold-light);
+  padding: 10px 24px;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  letter-spacing: 0.5px;
+  transition: opacity 0.2s, transform 0.1s;
+}
+.btn-kpu:hover { opacity: 0.9; }
+.btn-kpu:active { transform: scale(0.98); }
+
+/* Tombol Secondary */
+.btn-kpu-outline {
+  background: transparent;
+  border: 1.5px solid var(--kpu-gold);
+  color: var(--kpu-gold);
+  padding: 10px 24px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.btn-kpu-outline:hover {
+  background: var(--kpu-gold-muted);
+}
+
+/* Tombol Danger */
+.btn-kpu-danger {
+  background: transparent;
+  border: 1.5px solid rgba(220,38,38,0.4);
+  color: #dc2626;
+  padding: 10px 24px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.btn-kpu-danger:hover { background: rgba(220,38,38,0.06); }
+
+/* Input Focus */
+.input-kpu {
+  border: 1.5px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 14px;
+  width: 100%;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  font-family: inherit;
+}
+.input-kpu:focus {
+  border-color: var(--kpu-gold);
+  box-shadow: 0 0 0 3px rgba(200,147,10,0.12);
+}
+
+/* Select */
+.select-kpu {
+  border: 1.5px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 14px;
+  width: 100%;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  font-family: inherit;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23C8930A' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+}
+.select-kpu:focus {
+  border-color: var(--kpu-gold);
+  box-shadow: 0 0 0 3px rgba(200,147,10,0.12);
+}
+
+/* Toggle Tipe Peserta */
+.kpu-toggle {
+  display: flex;
+  border: 1.5px solid var(--kpu-gold);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 0 0 3px rgba(200,147,10,0.08);
+}
+.kpu-toggle-btn {
+  flex: 1; padding: 11px;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: background 0.2s, color 0.2s;
+}
+.kpu-toggle-btn.active {
+  background: var(--kpu-grad-btn);
+  color: var(--kpu-gold-light);
+}
+.kpu-toggle-btn:not(.active) {
+  background: transparent;
+  color: var(--kpu-gold);
+}
+
+/* Badge Status */
+.kpu-badge {
+  font-size: 11px; font-weight: 600;
+  padding: 4px 10px; border-radius: 999px;
+  display: inline-block;
+}
+.kpu-badge-terdaftar {
+  background: rgba(107,15,26,0.08);
+  border: 1px solid rgba(107,15,26,0.25);
+  color: #6B0F1A;
+}
+.kpu-badge-hadir {
+  background: rgba(21,128,61,0.08);
+  border: 1px solid rgba(21,128,61,0.25);
+  color: #15803d;
+}
+.kpu-badge-batal {
+  background: rgba(200,147,10,0.1);
+  border: 1px solid rgba(200,147,10,0.3);
+  color: #92400e;
+}
+
+/* Section Header (Form, Panel) */
+.kpu-section-header {
+  background: var(--kpu-grad-header);
+  padding: 16px 20px;
+  position: relative;
+  overflow: hidden;
+}
+.kpu-section-header .kpu-section-title {
+  font-size: 15px; font-weight: 700;
+  color: var(--kpu-gold-light);
+  position: relative; z-index: 1;
+}
+.kpu-section-header .kpu-section-sub {
+  font-size: 12px;
+  color: rgba(245,208,96,0.65);
+  position: relative; z-index: 1;
+  margin-top: 2px;
+}
+
+/* Stat Card */
+.kpu-stat-card {
+  border-radius: 10px;
+  padding: 16px;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(200,147,10,0.2);
+  background: var(--kpu-grad-card);
+}
+.kpu-stat-card .kpu-stat-num {
+  font-size: 28px; font-weight: 700;
+  color: #fff; line-height: 1;
+  position: relative; z-index: 1;
+}
+.kpu-stat-card .kpu-stat-label {
+  font-size: 12px; color: rgba(255,255,255,0.6);
+  margin-top: 4px; font-weight: 500;
+  position: relative; z-index: 1;
+}
+.kpu-stat-card::after {
+  content: '';
+  position: absolute; top: -20px; right: -20px;
+  width: 80px; height: 80px; border-radius: 50%;
+  background: rgba(255,255,255,0.04);
+  pointer-events: none;
+}
+
+/* Label Form */
+.kpu-form-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--kpu-maroon);
+  margin-bottom: 4px;
+  display: block;
+  letter-spacing: 0.2px;
+}

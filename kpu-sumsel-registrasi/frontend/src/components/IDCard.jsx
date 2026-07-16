@@ -1,97 +1,145 @@
-import { useState, useEffect } from 'react';
-import { generateQRCode } from '@/utils/generateQR';
-import { downloadIDCard } from '@/utils/generatePDF';
-import { KPU_BLUE, KPU_GOLD } from '@/constants';
+import { useEffect, useRef, useState } from 'react';
+import { LOGOKPU_URL } from '../constants/logo';
 
-export default function IDCard({ peserta, acara }) {
-  const [qrUrl, setQrUrl] = useState('');
-  const [loading, setLoading] = useState(false);
+export default function IDCard({ peserta, acaraInfo }) {
+  const [qrDataUrl, setQrDataUrl] = useState(null);
 
   useEffect(() => {
     if (peserta?.id) {
-      generateQRCode(peserta.id).then(setQrUrl);
+      import('qrcode').then((QRCode) => {
+        QRCode.default.toDataURL(peserta.id, {
+          errorCorrectionLevel: 'M',
+          margin: 1,
+          width: 150,
+          color: { dark: '#ffffff', light: '#3d1f0a' },
+        }).then((url) => {
+          setQrDataUrl(url);
+        }).catch((err) => {
+          console.error('Gagal membuat QR Code:', err);
+        });
+      });
     }
-  }, [peserta?.id]);
-
-  const handleDownload = async () => {
-    setLoading(true);
-    try {
-      const fullData = {
-        ...peserta,
-        nama_acara: acara?.nama_acara,
-        tanggal_acara: acara?.tanggal_acara,
-        lokasi_acara: acara?.lokasi_acara,
-      };
-      await downloadIDCard(fullData, qrUrl);
-    } catch (e) {
-      console.error('Gagal unduh PDF:', e);
-    }
-    setLoading(false);
-  };
+  }, [peserta]);
 
   if (!peserta) return null;
 
+  const fotoUrl = peserta.foto_path ? `/${peserta.foto_path}` : null;
+
   return (
-    <div className="space-y-4">
-      <div
-        className="border border-gray-300 rounded-lg overflow-hidden shadow-sm mx-auto"
-        style={{ maxWidth: '350px', aspectRatio: '1.414' }}
-      >
-        <div style={{ height: '3px', backgroundColor: KPU_GOLD }} />
-        <div className="px-3 py-2 flex items-center justify-between" style={{ backgroundColor: KPU_BLUE }}>
-          <span className="text-white font-bold text-xs tracking-wide">KOMISI PEMILIHAN UMUM</span>
-          <span className="text-white text-[8px] tracking-wider opacity-80">SUMATERA SELATAN</span>
+    <div
+      id="id-card-print"
+      data-id={peserta.id}
+      style={{
+        width: '105mm',
+        height: '80mm',
+        background: 'linear-gradient(180deg, #3d1f0a 0%, #2a1505 100%)',
+        borderRadius: '8px',
+        padding: '10px 14px',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        fontFamily: 'Arial, sans-serif',
+        color: '#ffffff',
+        position: 'relative',
+        overflow: 'hidden',
+        boxSizing: 'border-box',
+      }}
+    >
+      {/* Aksen emas kiri */}
+      <div style={{
+        position: 'absolute', left: 0, top: 0, bottom: 0,
+        width: '5px',
+        background: 'linear-gradient(180deg, #c9a227, #f0d060, #c9a227)',
+      }} />
+      {/* Aksen emas kanan */}
+      <div style={{
+        position: 'absolute', right: 0, top: 0, bottom: 0,
+        width: '5px',
+        background: 'linear-gradient(180deg, #c9a227, #f0d060, #c9a227)',
+      }} />
+
+      {/* Logo + Nama Lembaga */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', marginTop: '2px' }}>
+        <img src={LOGOKPU_URL} alt="KPU" style={{ width: '22px', height: '22px' }} />
+        <div style={{ fontSize: '7px', textAlign: 'left', lineHeight: 1.3, color: '#f0d060' }}>
+          <div style={{ fontWeight: 'bold' }}>KOMISI PEMILIHAN UMUM</div>
+          <div>PROVINSI SUMATERA SELATAN</div>
         </div>
-        <div className="p-4 flex flex-col justify-between h-[calc(100%-36px)]">
-          <div className="text-center">
-            <h4 className="font-bold text-xs tracking-widest" style={{ color: KPU_BLUE }}>TANDA PESERTA</h4>
-            <p className="font-bold text-[9px] text-gray-700 uppercase truncate mt-0.5">
-              {acara?.nama_acara || 'KEGIATAN KPU'}
-            </p>
-          </div>
-          <div className="flex items-center justify-between mt-3">
-            <div className="space-y-1.5 w-2/3">
-              <div>
-                <span className="text-gray-500 font-semibold block text-[9px]">No. Peserta</span>
-                <span className="font-bold text-sm">{String(peserta.nomor_urut).padStart(3, '0')}</span>
-              </div>
-              <div>
-                <span className="text-gray-500 font-semibold block text-[9px]">ID Registrasi</span>
-                <span className="font-mono font-bold text-xs" style={{ color: KPU_BLUE }}>{peserta.id}</span>
-              </div>
-              <div>
-                <span className="text-gray-500 font-semibold block text-[9px]">Nama</span>
-                <span className="font-bold text-xs uppercase truncate block">{peserta.nama_lengkap}</span>
-              </div>
-              <div>
-                <span className="text-gray-500 font-semibold block text-[9px]">Instansi</span>
-                <span className="text-xs truncate block">{peserta.instansi}</span>
-              </div>
-              <div>
-                <span className="text-gray-500 font-semibold block text-[9px]">Jabatan</span>
-                <span className="text-xs truncate block">{peserta.jabatan}</span>
-              </div>
-            </div>
-            <div className="w-1/3 flex justify-end">
-              {qrUrl ? (
-                <img src={qrUrl} alt="QR" className="w-28 h-28 border-2 p-0.5 rounded" />
-              ) : (
-                <div className="w-28 h-28 border-2 bg-gray-100 flex items-center justify-center text-[9px] text-gray-400 rounded">QR</div>
-              )}
-            </div>
-          </div>
-        </div>
-        <div style={{ height: '3px', backgroundColor: KPU_GOLD }} />
       </div>
 
-      <button
-        onClick={handleDownload}
-        disabled={loading}
-        className="w-full py-2.5 text-white font-bold rounded-lg hover:opacity-90 transition disabled:opacity-50"
-        style={{ backgroundColor: KPU_GOLD }}
-      >
-        {loading ? 'Menyiapkan PDF...' : '⬇ Unduh ID Card (PDF)'}
-      </button>
+      {/* Garis emas */}
+      <div style={{ width: '100%', height: '1.5px', background: '#c9a227', marginBottom: '4px' }} />
+
+      {/* Label PESERTA */}
+      <div style={{
+        fontSize: '7px', fontWeight: 'bold', textAlign: 'center',
+        color: '#f0d060', letterSpacing: '1px', marginBottom: '2px'
+      }}>
+        PESERTA
+      </div>
+
+      {/* Nama Acara */}
+      <div style={{
+        fontSize: '8px', fontWeight: 'bold', textAlign: 'center',
+        color: '#ffffff', lineHeight: 1.2, marginBottom: '3px', padding: '0 8px'
+      }}>
+        {acaraInfo?.nama_acara || (peserta.nama_acara || 'ACARA')}
+      </div>
+
+      {/* Lokasi & Tanggal */}
+      <div style={{ fontSize: '6px', color: '#f0d060', marginBottom: '5px', textAlign: 'center' }}>
+        {(acaraInfo?.lokasi_acara || peserta.lokasi_acara || '')} {acaraInfo?.tanggal_acara || peserta.tanggal_acara || ''}
+      </div>
+
+      {/* Konten utama: Foto + Info + QR horizontal */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', width: '100%', flex: 1 }}>
+        {/* Foto */}
+        <div style={{
+          width: '25mm', height: '30mm',
+          background: '#ffffff', borderRadius: '3px',
+          overflow: 'hidden', flexShrink: 0,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          border: '1.5px solid #c9a227',
+        }}>
+          {fotoUrl ? (
+            <img src={fotoUrl} alt="Foto"
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              onError={(e) => { e.target.style.display = 'none'; }}
+            />
+          ) : (
+            <div style={{ color: '#999', fontSize: '8px', textAlign: 'center' }}>
+              NO<br/>PHOTO
+            </div>
+          )}
+        </div>
+
+        {/* Info + QR */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, justifyContent: 'center' }}>
+          {/* Nama */}
+          <div style={{ fontSize: '10px', fontWeight: 'bold', color: '#ffffff', textAlign: 'center', marginBottom: '3px' }}>
+            {peserta.nama_lengkap}
+          </div>
+
+          {/* ID */}
+          <div style={{ fontSize: '7px', color: '#f0d060', fontFamily: 'monospace', marginBottom: '3px' }}>
+            {peserta.id}
+          </div>
+
+          {/* Jabatan & Instansi */}
+          <div style={{ fontSize: '6px', color: '#cccccc', textAlign: 'center', lineHeight: 1.3, marginBottom: '5px' }}>
+            {peserta.jabatan}<br/>{peserta.instansi}
+          </div>
+
+          {/* QR Code */}
+          {qrDataUrl && (
+            <img
+              src={qrDataUrl}
+              alt="QR Code"
+              style={{ width: '18mm', height: '18mm' }}
+            />
+          )}
+        </div>
+      </div>
     </div>
   );
 }
