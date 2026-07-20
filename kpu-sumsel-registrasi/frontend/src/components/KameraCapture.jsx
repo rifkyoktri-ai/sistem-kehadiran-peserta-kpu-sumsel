@@ -104,7 +104,7 @@ const KameraCapture = ({ onChange, required = true, label = "Foto Wajah", error 
           <button
             type="button"
             onClick={() => startCamera()}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors shadow-sm"
+            className="px-4 py-2 text-white rounded-md transition-colors shadow-sm" style={{ background: 'linear-gradient(135deg, #6B0F1A, #4A0A10)' }}
           >
             Buka Kamera
           </button>
@@ -131,7 +131,7 @@ const KameraCapture = ({ onChange, required = true, label = "Foto Wajah", error 
             <button
               type="button"
               onClick={handleCapture}
-              className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors font-medium shadow-lg"
+              className="px-6 py-2 text-white rounded-md transition-colors font-medium shadow-lg" style={{ background: 'linear-gradient(135deg, #6B0F1A, #4A0A10)' }}
             >
               Ambil Foto
             </button>

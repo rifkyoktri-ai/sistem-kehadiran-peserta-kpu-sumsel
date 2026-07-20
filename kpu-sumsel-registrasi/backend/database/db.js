@@ -14,23 +14,20 @@ const LOKASI_DB = path.join(__dirname, 'kpu_registrasi.db');
 let _db = null;
 let _sqlJs = null;
 let _saveTimer = null;
+let _dalamTransaksi = false;
 
 // ── Simpan database ke disk ─────────────────────────────────────────────────
 function _simpanKeDisk() {
-  if (_db) {
-    const data = _db.export();
+  if (_dalamTransaksi) return; // Jangan simpan selama transaksi berjalan
+  if (_db && _db._raw) {
+    const data = _db._raw.export();
     const buffer = Buffer.from(data);
     fs.writeFileSync(LOKASI_DB, buffer);
   }
 }
 
-// Debounced save — menyimpan ke disk setelah perubahan, dengan delay kecil
-// agar multiple write berurutan tidak membuat I/O berlebihan
 function _jadwalkanSimpan() {
-  if (_saveTimer) clearTimeout(_saveTimer);
-  _saveTimer = setTimeout(() => {
-    _simpanKeDisk();
-  }, 100);
+  _simpanKeDisk();
 }
 
 // ── Wrapper Statement — meniru API better-sqlite3 Statement ─────────────────
@@ -105,24 +102,25 @@ class WrappedDatabase {
   transaction(fn) {
     const self = this;
     return function (...args) {
+      _dalamTransaksi = true;
       self._raw.run('BEGIN TRANSACTION');
       try {
         const result = fn(...args);
         self._raw.run('COMMIT');
-        _simpanKeDisk(); // Simpan langsung setelah transaksi selesai
+        _dalamTransaksi = false;
+        _simpanKeDisk(); // Simpan ke disk setelah COMMIT sukses
         return result;
       } catch (err) {
-        self._raw.run('ROLLBACK');
+        try {
+          self._raw.run('ROLLBACK');
+        } catch (_) {}
+        _dalamTransaksi = false;
         throw err;
       }
     };
   }
 
   close() {
-    if (_saveTimer) {
-      clearTimeout(_saveTimer);
-      _saveTimer = null;
-    }
     _simpanKeDisk();
     this._raw.close();
   }

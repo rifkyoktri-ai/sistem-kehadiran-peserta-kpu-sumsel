@@ -8,6 +8,7 @@ const { STATUS_PESERTA, AKSI_LOG, STATUS_REGISTRASI } = require('../constants');
 const { catatAuditLog } = require('../utils/auditLog');
 const { generateIdPeserta } = require('../utils/helpers');
 const { saveBase64Photo } = require('../utils/photo');
+const { kirimEmailKonfirmasi } = require('../utils/email');
 
 /**
  * Mengambil acara yang aktif saat ini dari database.
@@ -146,13 +147,25 @@ exports.daftarPeserta = (req, res) => {
       return res.status(409).json({ sukses: false, pesan: 'Kuota pendaftaran sudah penuh.', data: null });
     }
 
-    // Generate nomor urut per tipe peserta (agar prefix tidak tabrakan)
-    const maxUrut = db.prepare(
+    // Generate nomor urut per tipe peserta — simpan sebagai string berformat prefix
+    const maxRow = db.prepare(
       'SELECT MAX(nomor_urut) as max FROM peserta WHERE acara_id = ? AND tipe_peserta = ?'
     ).get(acara.id, tipe_peserta);
-    const nomorUrut = (maxUrut.max || 0) + 1;
 
-    const idBaru = generateIdPeserta(nomorUrut, acara.kode_acara, tipe_peserta);
+    let nextNum = 1;
+    if (maxRow && maxRow.max != null) {
+      const val = String(maxRow.max);
+      // Handle both legacy integer ("3") and prefixed string ("KPU-0003")
+      const match = val.match(/(\d+)$/);
+      if (match) {
+        nextNum = parseInt(match[1], 10) + 1;
+      }
+    }
+
+    const prefix = tipe_peserta === 'internal' ? 'KPU' : 'EKS';
+    const nomorUrut = `${prefix}-${String(nextNum).padStart(4, '0')}`;
+
+    const idBaru = generateIdPeserta(nextNum, acara.kode_acara, tipe_peserta);
     const waktuDaftar = new Date().toISOString();
 
     let fotoPath = null;
@@ -179,6 +192,10 @@ exports.daftarPeserta = (req, res) => {
       JOIN acara a ON p.acara_id = a.id
       WHERE p.id = ?
     `).get(idBaru);
+
+    // Kirim email konfirmasi secara asynchronous — tidak menunda respons ke peserta
+    // dan tidak menggagalkan registrasi jika pengiriman email gagal.
+    kirimEmailKonfirmasi(dataBaru);
 
     return res.status(201).json({
       sukses: true,
@@ -239,4 +256,50 @@ exports.infoPesertaById = (req, res) => {
   }
 };
 
+// ── Cari peserta berdasarkan nomor urut (QR) ──────────────────────────────────
+const cariByNomorUrut = (req, res) => {
+  try {
+    const { nomor_urut } = req.params;
+    const db = ambilKoneksiDB();
+    const peserta = db.prepare('SELECT * FROM peserta WHERE nomor_urut = ? LIMIT 1').get(nomor_urut);
+
+    if (!peserta) {
+      return res.status(404).json({
+        error: `Peserta dengan nomor ${nomor_urut} tidak ditemukan.`
+      });
+    }
+
+    res.json({ peserta });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+const tandaiHadirById = (req, res) => {
+  try {
+    const { id } = req.params;
+    const db = ambilKoneksiDB();
+
+    const peserta = db.prepare('SELECT * FROM peserta WHERE id = ?').get(id);
+    if (!peserta) {
+      return res.status(404).json({ sukses: false, pesan: 'Peserta tidak ditemukan.' });
+    }
+    if (peserta.status === STATUS_PESERTA.HADIR) {
+      return res.status(409).json({ sukses: false, pesan: 'Peserta sudah hadir.', peserta });
+    }
+
+    const waktuCheckin = new Date().toISOString();
+    db.prepare(
+      "UPDATE peserta SET status = ?, waktu_checkin = ? WHERE id = ?"
+    ).run(STATUS_PESERTA.HADIR, waktuCheckin, id);
+
+    const updated = db.prepare('SELECT * FROM peserta WHERE id = ?').get(id);
+    return res.json({ sukses: true, pesan: 'Check-in berhasil.', peserta: updated });
+  } catch (err) {
+    return res.status(500).json({ sukses: false, pesan: err.message });
+  }
+};
+
 module.exports.ambilAcaraAktif = ambilAcaraAktif;
+module.exports.cariByNomorUrut = cariByNomorUrut;
+module.exports.tandaiHadirById = tandaiHadirById;

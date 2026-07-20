@@ -40,14 +40,14 @@ function LoginForm({ onLogin }) {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#001f5b] px-4" style={{ background: 'linear-gradient(135deg, #001f5b 0%, #003580 100%)' }}>
+    <div className="min-h-screen flex items-center justify-center px-4" style={{ background: 'linear-gradient(135deg, #2A0508 0%, #4A0A10 50%, #3A0708 100%)' }}>
       <div className="max-w-md w-full bg-white rounded-2xl shadow-card p-8 md:p-10 relative overflow-hidden">
         {/* Garis emas atas */}
         <div className="absolute top-0 left-0 right-0 h-1" style={{ background: 'linear-gradient(90deg, #C8972A 0%, #E8B84B 50%, #C8972A 100%)' }}></div>
         
         <div className="text-center mb-8">
           <img src={LOGOKPU_URL} alt="KPU Sumsel" className="h-16 mx-auto mb-4" />
-          <h1 className="text-xl font-bold font-display text-[#0D1B3E] uppercase tracking-wide">KPU Provinsi Sumatera Selatan</h1>
+          <h1 className="text-xl font-bold font-display text-[#6B0F1A] uppercase tracking-wide">KPU Provinsi Sumatera Selatan</h1>
           
           <div className="flex items-center justify-center my-4">
             <div className="h-px w-12 bg-[#E2E8F0]"></div>
@@ -55,34 +55,34 @@ function LoginForm({ onLogin }) {
             <div className="h-px w-12 bg-[#E2E8F0]"></div>
           </div>
 
-          <h2 className="text-xl font-bold font-display text-[#003580]">Dashboard Administrator</h2>
+          <h2 className="text-xl font-bold font-display text-[#6B0F1A]">Dashboard Administrator</h2>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
-            <label className="block text-sm font-display font-semibold text-[#0D1B3E] mb-2">Username</label>
+            <label className="kpu-form-label">Username</label>
             <input
               type="text" value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="w-full h-12 border-[1.5px] border-[#E2E8F0] rounded-xl px-4 focus:outline-none focus:border-[#003580] focus:ring-[3px] focus:ring-[#003580]/12 transition-all font-body text-[#0D1B3E]"
+              className="input-kpu"
               placeholder="Masukkan username" required
             />
           </div>
           <div>
-            <label className="block text-sm font-display font-semibold text-[#0D1B3E] mb-2">Password</label>
+            <label className="kpu-form-label">Password</label>
             <input
               type="password" value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full h-12 border-[1.5px] border-[#E2E8F0] rounded-xl px-4 focus:outline-none focus:border-[#003580] focus:ring-[3px] focus:ring-[#003580]/12 transition-all font-body text-[#0D1B3E] font-mono tracking-widest"
+              className="input-kpu font-mono tracking-widest"
               placeholder="••••••••" required
             />
           </div>
           {error && <p className="text-sm text-[#B91C1C] text-center font-medium bg-[#FEE2E2] p-2 rounded-lg">{error}</p>}
           
           <div className="pt-2">
-            <TombolPrimer type="submit" varian="primer" ukuran="lg" fullWidth={true} disabled={loading}>
+            <button type="submit" className="btn-kpu w-full" disabled={loading}>
               {loading ? 'MEMPROSES...' : 'MASUK'}
-            </TombolPrimer>
+            </button>
           </div>
         </form>
       </div>
@@ -256,19 +256,31 @@ function Dashboard({ password, onLogout }) {
 
       <div className="flex-1 flex overflow-hidden">
         {/* SIDEBAR */}
-        <aside className="w-[260px] bg-[#001f5b] min-h-full flex flex-col shrink-0 overflow-y-auto">
+        <aside 
+          className="w-[260px] min-h-full flex flex-col shrink-0 overflow-y-auto"
+          style={{ 
+            background: 'linear-gradient(180deg, #2A0508 0%, #3A0708 100%)',
+            borderRight: '1px solid rgba(200,147,10,0.2)' 
+          }}
+        >
           <div className="p-6 border-b border-white/10">
-            <h2 className="text-white font-display font-bold text-lg">Menu Admin</h2>
-            <p className="text-white/60 text-xs mt-1">Sistem Registrasi KPU</p>
+            <h2 className="font-display text-lg" style={{ color: '#FFD700', fontWeight: 700 }}>Menu Admin</h2>
+            <p className="text-xs mt-1" style={{ color: 'rgba(200,147,10,0.6)' }}>Sistem Registrasi KPU</p>
           </div>
 
           {/* Pemilih Acara */}
           <div className="px-6 py-4 border-b border-white/10">
-            <label className="block text-white/50 text-[10px] font-bold uppercase tracking-wider mb-2">Pilih Acara</label>
+            <label className="block mb-2 uppercase" style={{ color: 'rgba(200,147,10,0.5)', fontSize: '11px', letterSpacing: '1.5px', fontWeight: 'bold' }}>Pilih Acara</label>
             <select 
               value={idAcaraSelected}
               onChange={(e) => setIdAcaraSelected(e.target.value)}
-              className="w-full h-10 bg-white/10 text-white border border-white/20 rounded-lg px-2 text-xs focus:outline-none focus:border-[#C8972A]"
+              className="w-full h-10 px-2 text-xs focus:outline-none"
+              style={{
+                background: 'rgba(200,147,10,0.08)',
+                border: '1px solid rgba(200,147,10,0.3)',
+                color: '#F5D060',
+                borderRadius: '6px'
+              }}
             >
               {daftarAcara.map(ac => (
                 <option key={ac.id} value={ac.id} className="text-[#1F1A17]">
@@ -285,26 +297,37 @@ function Dashboard({ password, onLogout }) {
                 <button
                   key={t.key}
                   onClick={() => setTab(t.key)}
-                  className={`w-full flex items-center gap-3 px-6 py-3 text-left transition-all ${
+                  className={`w-full flex items-center gap-3 px-6 py-3 text-left transition-all group ${
                     active 
-                    ? 'bg-white/15 border-l-4 border-[#C8972A] text-white font-semibold' 
-                    : 'text-white/60 hover:bg-white/10 hover:text-white border-l-4 border-transparent'
+                    ? '' 
+                    : 'hover:bg-[rgba(200,147,10,0.08)] hover:text-[#F5D060]'
                   }`}
+                  style={active ? {
+                    background: 'rgba(200,147,10,0.15)',
+                    borderLeft: '3px solid #FFD700',
+                    color: '#FFD700',
+                    fontWeight: 600
+                  } : {
+                    borderLeft: '3px solid transparent',
+                    color: 'rgba(255,255,255,0.55)'
+                  }}
                 >
-                  <span className="text-lg">{t.label.split(' ')[0]}</span>
+                  <span className="text-lg transition-colors" style={active ? { color: '#FFD700' } : { color: 'rgba(255,255,255,0.4)' }} >
+                    {t.label.split(' ')[0]}
+                  </span>
                   <span className="font-display">{t.label.split(' ').slice(1).join(' ')}</span>
                 </button>
               );
             })}
           </nav>
 
-          <div className="p-6 border-t border-white/10">
-            <p className="text-white/40 text-[10px] mb-4">Sistem Versi 2.0</p>
+          <div className="p-6" style={{ borderTop: '1px solid rgba(200,147,10,0.15)' }}>
+            <p className="text-[10px] mb-4 font-bold" style={{ color: 'rgba(200,147,10,0.4)' }}>Sistem Versi 2.0</p>
             <button 
               onClick={onLogout} 
               className="w-full flex items-center gap-2 text-white/80 hover:text-[#FF6B6B] transition-colors font-semibold text-sm"
             >
-              <span>🚪</span> Keluar Sistem
+              <span style={{ color: 'rgba(255,255,255,0.4)' }}>🚪</span> Keluar Sistem
             </button>
           </div>
         </aside>
@@ -313,7 +336,7 @@ function Dashboard({ password, onLogout }) {
         <main className="flex-1 overflow-y-auto">
           {feedback && (
             <div className="fixed top-24 right-8 z-50 animate-[slideUp_250ms_ease-out]">
-              <div className="bg-[#003580] text-white px-6 py-3 rounded-lg shadow-lg font-medium text-sm border-l-4 border-[#C8972A]">
+              <div className="bg-[#4A0A10] text-white px-6 py-3 rounded-lg shadow-lg font-medium text-sm border-l-4 border-[#C8972A]">
                 {feedback}
               </div>
             </div>
@@ -324,7 +347,7 @@ function Dashboard({ password, onLogout }) {
             {tab === 'rekap' && (
               <div className="animate-[slideUp_250ms_ease-out]">
                 <div className="mb-8">
-                  <h2 className="text-3xl font-display font-bold text-[#0D1B3E]">Selamat datang, Admin</h2>
+                  <h2 className="text-3xl font-display font-bold text-[#4A0A10]">Selamat datang, Admin</h2>
                   <p className="text-[#5A6A8A] mt-1 font-body">KPU Provinsi Sumatera Selatan · {tanggalHariIni}</p>
                 </div>
 
@@ -334,38 +357,42 @@ function Dashboard({ password, onLogout }) {
                   </div>
                 ) : rekap ? (
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
-                    <div className="bg-[#003580] rounded-2xl p-6 text-white shadow-card relative overflow-hidden">
-                      <div className="text-3xl mb-3">👥</div>
-                      <div className="text-5xl font-bold font-display">{rekap.total_seluruh || 0}</div>
-                      <div className="text-sm text-white/70 mt-1">Total Terdaftar</div>
-                      <div className="w-full h-1 bg-white/20 mt-4 rounded-full overflow-hidden">
+                    <div className="kpu-stat-card" style={{ position: 'relative' }}>
+                      <div className="kpu-glow"></div>
+                      <i className="ti ti-users" style={{ fontSize: '28px', color: 'rgba(255,255,255,0.15)', position: 'absolute', bottom: '12px', right: '14px', zIndex: 10 }}></i>
+                      <div className="kpu-stat-num">{rekap.total_seluruh || 0}</div>
+                      <div className="kpu-stat-label">Total Terdaftar</div>
+                      <div className="w-full h-1 bg-white/20 mt-4 rounded-full overflow-hidden relative z-10">
                         <div className="h-full bg-white/40 w-1/2"></div>
                       </div>
                     </div>
                     
-                    <div className="bg-[#16A34A] rounded-2xl p-6 text-white shadow-card relative overflow-hidden">
-                      <div className="text-3xl mb-3">✅</div>
-                      <div className="text-5xl font-bold font-display">{rekap.total_hadir || 0}</div>
-                      <div className="text-sm text-white/70 mt-1">Hadir (Check-in)</div>
-                      <div className="w-full h-1 bg-white/20 mt-4 rounded-full overflow-hidden">
+                    <div className="kpu-stat-card" style={{ position: 'relative' }}>
+                      <div className="kpu-glow"></div>
+                      <i className="ti ti-circle-check" style={{ fontSize: '28px', color: 'rgba(255,255,255,0.15)', position: 'absolute', bottom: '12px', right: '14px', zIndex: 10 }}></i>
+                      <div className="kpu-stat-num">{rekap.total_hadir || 0}</div>
+                      <div className="kpu-stat-label">Hadir (Check-in)</div>
+                      <div className="w-full h-1 bg-white/20 mt-4 rounded-full overflow-hidden relative z-10">
                         <div className="h-full bg-white" style={{ width: `${rekap.total_seluruh ? (rekap.total_hadir / rekap.total_seluruh) * 100 : 0}%` }}></div>
                       </div>
                     </div>
 
-                    <div className="bg-[#B91C1C] rounded-2xl p-6 text-white shadow-card relative overflow-hidden">
-                      <div className="text-3xl mb-3">✕</div>
-                      <div className="text-5xl font-bold font-display">{(rekap.total_membatalkan || 0) + (rekap.total_digantikan || 0)}</div>
-                      <div className="text-sm text-white/70 mt-1">Dibatalkan / Diganti</div>
+                    <div className="kpu-stat-card" style={{ position: 'relative' }}>
+                      <div className="kpu-glow"></div>
+                      <i className="ti ti-circle-x" style={{ fontSize: '28px', color: 'rgba(255,255,255,0.15)', position: 'absolute', bottom: '12px', right: '14px', zIndex: 10 }}></i>
+                      <div className="kpu-stat-num">{(rekap.total_membatalkan || 0) + (rekap.total_digantikan || 0)}</div>
+                      <div className="kpu-stat-label">Dibatalkan / Diganti</div>
                     </div>
 
-                    <div className="bg-[#C8972A] rounded-2xl p-6 text-white shadow-card relative overflow-hidden">
-                      <div className="text-3xl mb-3">%</div>
-                      <div className="text-5xl font-bold font-display">
+                    <div className="kpu-stat-card" style={{ position: 'relative' }}>
+                      <div className="kpu-glow"></div>
+                      <i className="ti ti-chart-bar" style={{ fontSize: '28px', color: 'rgba(255,255,255,0.15)', position: 'absolute', bottom: '12px', right: '14px', zIndex: 10 }}></i>
+                      <div className="kpu-stat-num">
                         {rekap.total_seluruh && rekap.total_seluruh > 0 
                           ? Math.round((rekap.total_hadir / (rekap.total_seluruh - (rekap.total_membatalkan || 0))) * 100) 
                           : 0}%
                       </div>
-                      <div className="text-sm text-white/70 mt-1">Tingkat Kehadiran Aktif</div>
+                      <div className="kpu-stat-label">Tingkat Kehadiran Aktif</div>
                     </div>
                   </div>
                 ) : (
@@ -375,7 +402,7 @@ function Dashboard({ password, onLogout }) {
                 <div className="bg-white rounded-2xl shadow-card border border-[#E2E8F0] p-6">
                   <div className="flex items-center gap-3 mb-6 relative">
                     <div className="absolute left-[-24px] top-0 bottom-0 w-1 bg-[#C8972A]"></div>
-                    <h3 className="font-display font-semibold text-xl text-[#0D1B3E]">Aksi Cepat</h3>
+                    <h3 className="font-display font-semibold text-xl text-[#3A0708]">Aksi Cepat</h3>
                   </div>
                   
                   <div className="flex flex-wrap gap-4">
@@ -393,9 +420,10 @@ function Dashboard({ password, onLogout }) {
             {/* Tab Data Peserta */}
             {tab === 'peserta' && (
               <div className="animate-[slideUp_250ms_ease-out]">
-                <div className="flex items-center gap-3 mb-6 relative">
-                  <div className="absolute left-[-16px] top-0 bottom-0 w-1 bg-[#C8972A]"></div>
-                  <h3 className="font-display font-bold text-2xl text-[#0D1B3E]">Data Peserta</h3>
+                <div className="kpu-section-header mb-6" style={{ zIndex: 1 }}>
+                  <div className="kpu-dots" />
+                  <div className="kpu-line-gold" />
+                  <h3 className="kpu-section-title">Data Peserta</h3>
                 </div>
 
                 <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-6">
@@ -406,7 +434,7 @@ function Dashboard({ password, onLogout }) {
                       value={pesertaSearch}
                       onChange={(e) => setPesertaSearch(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && muatPeserta(1, pesertaSearch)}
-                      className="w-full md:max-w-md h-12 px-4 rounded-lg border-[1.5px] border-[#E2E8F0] focus:outline-none focus:border-[#003580] focus:ring-[3px] focus:ring-[#003580]/12"
+                      className="w-full md:max-w-md h-12 px-4 rounded-lg border-[1.5px] border-[#E2E8F0] focus:outline-none focus:border-[#6B0F1A] focus:ring-[3px] focus:ring-[#6B0F1A]/12"
                     />
                     <TombolPrimer onClick={() => muatPeserta(1, pesertaSearch)} varian="primer">
                       Cari
@@ -427,6 +455,7 @@ function Dashboard({ password, onLogout }) {
                   onPageChange={(hal) => muatPeserta(hal, pesertaSearch)}
                   passwordAdmin={password} // Pass password for actions inside TabelPeserta if it edits data
                   onRefresh={() => muatPeserta(pesertaPage, pesertaSearch)}
+                  acaraId={idAcaraSelected} // Pass selected acara ID for hadir action
                 />
               </div>
             )}
@@ -436,7 +465,7 @@ function Dashboard({ password, onLogout }) {
               <div className="animate-[slideUp_250ms_ease-out]">
                 <div className="flex items-center gap-3 mb-6 relative">
                   <div className="absolute left-[-16px] top-0 bottom-0 w-1 bg-[#C8972A]"></div>
-                  <h3 className="font-display font-bold text-2xl text-[#0D1B3E]">Manajemen Multi-Acara</h3>
+                  <h3 className="font-display font-bold text-2xl text-[#3A0708]">Manajemen Multi-Acara</h3>
                 </div>
                 <KelolaAcaraPanel 
                   password={password} 
@@ -453,7 +482,7 @@ function Dashboard({ password, onLogout }) {
               <div className="animate-[slideUp_250ms_ease-out]">
                 <div className="flex items-center gap-3 mb-6 relative">
                   <div className="absolute left-[-16px] top-0 bottom-0 w-1 bg-[#C8972A]"></div>
-                  <h3 className="font-display font-bold text-2xl text-[#0D1B3E]">Pengaturan Acara</h3>
+                  <h3 className="font-display font-bold text-2xl text-[#3A0708]">Pengaturan Acara</h3>
                 </div>
                 <PengaturanForm 
                   password={password} 
@@ -469,7 +498,7 @@ function Dashboard({ password, onLogout }) {
               <div className="animate-[slideUp_250ms_ease-out]">
                 <div className="flex items-center gap-3 mb-6 relative">
                   <div className="absolute left-[-16px] top-0 bottom-0 w-1 bg-[#C8972A]"></div>
-                  <h3 className="font-display font-bold text-2xl text-[#0D1B3E]">Riwayat Aktivitas Sistem</h3>
+                  <h3 className="font-display font-bold text-2xl text-[#3A0708]">Riwayat Aktivitas Sistem</h3>
                 </div>
 
                 <div className="bg-white rounded-2xl shadow-card border border-[#E2E8F0] overflow-hidden">
@@ -479,7 +508,7 @@ function Dashboard({ password, onLogout }) {
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm">
                         <thead>
-                          <tr className="bg-[#003580] text-white text-left font-display">
+                          <tr className="text-white text-left font-display" style={{ background: 'linear-gradient(90deg, #2A0508, #4A0A10)' }}>
                             <th className="px-6 py-4 font-semibold whitespace-nowrap">Waktu</th>
                             <th className="px-6 py-4 font-semibold">Aktor</th>
                             <th className="px-6 py-4 font-semibold">Aksi</th>
@@ -490,7 +519,7 @@ function Dashboard({ password, onLogout }) {
                         <tbody className="font-body">
                           {auditLog.length > 0 ? auditLog.map((log, idx) => {
                             let chipClass = "bg-gray-100 text-gray-700";
-                            if (log.aksi === 'REGISTRASI' || log.aksi === 'WALKIN') chipClass = "bg-blue-100 text-blue-700";
+                            if (log.aksi === 'REGISTRASI' || log.aksi === 'WALKIN') chipClass = "bg-[rgba(200,147,10,0.15)] text-[#C8930A]";
                             if (log.aksi === 'CHECKIN') chipClass = "bg-green-100 text-green-700";
                             if (log.aksi === 'BATALKAN') chipClass = "bg-red-100 text-red-700";
                             if (log.aksi === 'EDIT_DATA') chipClass = "bg-yellow-100 text-yellow-700";
@@ -499,13 +528,13 @@ function Dashboard({ password, onLogout }) {
                             return (
                               <tr key={log.id} className={`border-b border-[#E2E8F0] hover:bg-[#EEF2F7] transition-colors ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}`}>
                                 <td className="px-6 py-3 whitespace-nowrap text-[#5A6A8A]">{log.waktu?.slice(0, 19).replace('T', ' ')}</td>
-                                <td className="px-6 py-3 font-medium text-[#0D1B3E]">{log.aktor}</td>
+                                <td className="px-6 py-3 font-medium text-[#4A0A10]">{log.aktor}</td>
                                 <td className="px-6 py-3">
                                   <span className={`px-2 py-1 rounded text-[10px] font-bold tracking-wider ${chipClass}`}>
                                     {log.aksi}
                                   </span>
                                 </td>
-                                <td className="px-6 py-3 font-mono text-xs text-[#003580]">{log.id_peserta || '-'}</td>
+                                <td className="px-6 py-3 font-mono text-xs text-[#6B0F1A]">{log.id_peserta || '-'}</td>
                                 <td className="px-6 py-3 text-[#5A6A8A] text-xs max-w-xs truncate" title={log.detail}>{log.detail}</td>
                               </tr>
                             );
@@ -513,7 +542,7 @@ function Dashboard({ password, onLogout }) {
                             <tr>
                               <td colSpan={5} className="px-6 py-16 text-center text-[#5A6A8A]">
                                 <div className="text-4xl mb-3">📋</div>
-                                <p className="font-medium text-[#0D1B3E] text-base">Belum ada riwayat aktivitas.</p>
+                                <p className="font-medium text-[#3A0708] text-base">Belum ada riwayat aktivitas.</p>
                               </td>
                             </tr>
                           )}
@@ -588,7 +617,7 @@ function PengaturanForm({ password, idAcara, onSuccess, onError }) {
         <Field label="Password Petugas Lapangan" name="password_petugas" value={form.password_petugas || ''} onChange={handleChange} />
         
         <div className="pt-4 border-t border-[#E2E8F0]">
-          <label className="block text-sm font-display font-semibold text-[#0D1B3E] mb-3">Status Registrasi Sistem</label>
+          <label className="block text-sm font-display font-semibold text-[#3A0708] mb-3">Status Registrasi Sistem</label>
           <div className="flex items-center gap-4 bg-[#EEF2F7] p-4 rounded-xl border border-[#E2E8F0]">
             <label className={`flex items-center gap-2 cursor-pointer ${form.status_registrasi === 'buka' ? 'text-[#16A34A] font-bold' : 'text-gray-500'}`}>
               <input type="radio" name="status_registrasi" value="buka" checked={form.status_registrasi === 'buka'} onChange={handleChange} className="w-5 h-5 text-[#16A34A] focus:ring-[#16A34A]" />
@@ -625,6 +654,10 @@ function KelolaAcaraPanel({ password, apiFetch, onRefresh, currentActiveId, setF
   const [deadlineRegistrasi, setDeadlineRegistrasi] = useState('');
   const [passwordPetugas, setPasswordPetugas] = useState('');
   const [saving, setSaving] = useState(false);
+
+  const authHeaders = () => password.startsWith('eyJ')
+    ? { 'Authorization': 'Bearer ' + password }
+    : { 'x-password': password };
 
   const muatAcara = async () => {
     setLoading(true);
@@ -713,7 +746,7 @@ function KelolaAcaraPanel({ password, apiFetch, onRefresh, currentActiveId, setF
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
       <div className="lg:col-span-2 space-y-6">
         <div className="bg-white rounded-2xl shadow-card border border-[#E2E8F0] p-6">
-          <h3 className="font-display font-semibold text-lg text-[#0D1B3E] mb-4">Semua Acara</h3>
+          <h3 className="font-display font-semibold text-lg text-[#3A0708] mb-4">Semua Acara</h3>
           {loading ? (
             <p className="text-gray-500 animate-pulse">Memuat daftar acara...</p>
           ) : listAcara.length === 0 ? (
@@ -753,7 +786,7 @@ function KelolaAcaraPanel({ password, apiFetch, onRefresh, currentActiveId, setF
       </div>
 
       <div className="bg-white rounded-2xl shadow-card border border-[#E2E8F0] p-6 h-fit">
-        <h3 className="font-display font-semibold text-lg text-[#0D1B3E] mb-4">Buat Acara Baru</h3>
+        <h3 className="font-display font-semibold text-lg text-[#3A0708] mb-4">Buat Acara Baru</h3>
         <form onSubmit={handleCreate} className="space-y-4">
           <div>
             <label className="block text-xs font-semibold text-[#1F1A17] mb-1">Kode Acara (Prefix ID)</label>
@@ -841,10 +874,10 @@ function KelolaAcaraPanel({ password, apiFetch, onRefresh, currentActiveId, setF
 function Field({ label, name, value, onChange, type = 'text' }) {
   return (
     <div>
-      <label className="block text-sm font-display font-semibold text-[#0D1B3E] mb-2">{label}</label>
+      <label className="block text-sm font-display font-semibold text-[#3A0708] mb-2">{label}</label>
       <input 
         type={type} name={name} value={value} onChange={onChange} 
-        className="w-full h-12 border-[1.5px] border-[#E2E8F0] rounded-xl px-4 focus:outline-none focus:border-[#003580] focus:ring-[3px] focus:ring-[#003580]/12 transition-all font-body text-[#0D1B3E]" 
+        className="w-full h-12 border-[1.5px] border-[#E2E8F0] rounded-xl px-4 focus:outline-none focus:border-[#6B0F1A] focus:ring-[3px] focus:ring-[#6B0F1A]/12 transition-all font-body text-[#3A0708]" 
       />
     </div>
   );

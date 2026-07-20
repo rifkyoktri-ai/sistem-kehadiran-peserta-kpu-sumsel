@@ -55,7 +55,8 @@ function authPetugas(req, res, next) {
   const jwtResult = cobaJwt(req);
   if (jwtResult) {
     req.aktor = jwtResult.aktor;
-    req.acaraId = jwtResult.acaraId;
+    // Use acara_id from JWT, but fallback to x-acara-id header if JWT doesn't have it
+    req.acaraId = jwtResult.acaraId || req.headers['x-acara-id'] || null;
     return next();
   }
 

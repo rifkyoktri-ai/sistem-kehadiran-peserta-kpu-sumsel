@@ -25,7 +25,7 @@ export default function ModalIDCard({ terbuka, peserta, onTutup }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={onTutup}>
       <div className="bg-white rounded-2xl p-8 max-w-lg w-full shadow-2xl" onClick={(e) => e.stopPropagation()}>
-        <h2 className="font-display font-bold text-lg text-[#0D1B3E] mb-4 text-center">
+        <h2 className="font-display font-bold text-lg text-[#3A0708] mb-4 text-center">
           Preview ID Card
         </h2>
 
@@ -46,13 +46,13 @@ export default function ModalIDCard({ terbuka, peserta, onTutup }) {
                 alert('Gagal mencetak: ' + e.message);
               }
             }}
-            className="flex-1 bg-[#003580] text-white font-bold py-3 rounded-xl hover:bg-[#002a66] transition"
+            className="flex-1 text-white font-bold py-3 rounded-xl transition" style={{ background: 'linear-gradient(135deg, #6B0F1A, #4A0A10)' }}
           >
             Cetak PDF
           </button>
           <button
             onClick={onTutup}
-            className="flex-1 bg-[#EEF2F7] text-[#0D1B3E] font-bold py-3 rounded-xl hover:bg-[#DEE3EC] transition"
+            className="flex-1 bg-[#EEF2F7] text-[#3A0708] font-bold py-3 rounded-xl hover:bg-[#DEE3EC] transition"
           >
             Tutup
           </button>

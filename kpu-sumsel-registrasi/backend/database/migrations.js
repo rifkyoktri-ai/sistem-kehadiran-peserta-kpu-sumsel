@@ -256,6 +256,26 @@ function jalankanMigrasi() {
     console.error('[MIGRASI] Gagal menambah kolom foto_path:', err.message);
   }
 
+  // Migrasi: tambah kolom email_status & email_terakhir_dicoba jika belum ada
+  try {
+    const colsPeserta3 = db.prepare('PRAGMA table_info(peserta)').all();
+    const sudahAdaEmailStatus = colsPeserta3.some(c => c.name === 'email_status');
+    const sudahAdaEmailDicoba = colsPeserta3.some(c => c.name === 'email_terakhir_dicoba');
+    if (!sudahAdaEmailStatus || !sudahAdaEmailDicoba) {
+      backupDatabaseLama(lokasiDb);
+    }
+    if (!sudahAdaEmailStatus) {
+      db.exec("ALTER TABLE peserta ADD COLUMN email_status TEXT NOT NULL DEFAULT 'tidak_ada_email'");
+      console.log('[MIGRASI] Kolom email_status berhasil ditambahkan ke tabel peserta.');
+    }
+    if (!sudahAdaEmailDicoba) {
+      db.exec("ALTER TABLE peserta ADD COLUMN email_terakhir_dicoba TEXT DEFAULT NULL");
+      console.log('[MIGRASI] Kolom email_terakhir_dicoba berhasil ditambahkan ke tabel peserta.');
+    }
+  } catch (err) {
+    console.error('[MIGRASI] Gagal menambah kolom email:', err.message);
+  }
+
   // Aktifkan foreign keys & buat index
   db.exec('PRAGMA foreign_keys = ON');
   db.exec('CREATE INDEX IF NOT EXISTS idx_peserta_email ON peserta(email)');

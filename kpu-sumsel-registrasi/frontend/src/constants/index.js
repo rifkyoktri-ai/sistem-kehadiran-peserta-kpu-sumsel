@@ -12,13 +12,13 @@ export const LABEL_STATUS = {
 };
 
 export const WARNA_STATUS = {
-  terdaftar  : 'bg-blue-100 text-blue-800 border-blue-200',
+  terdaftar  : 'bg-[rgba(107,15,26,0.08)] text-[#6B0F1A] border-[rgba(107,15,26,0.2)]',
   hadir      : 'bg-green-100 text-green-800 border-green-200',
   membatalkan: 'bg-red-100 text-red-800 border-red-200',
   digantikan : 'bg-gray-100 text-gray-600 border-gray-200',
 };
 
 export const NAMA_APLIKASI = 'Sistem Registrasi KPU Sumsel';
-export const KPU_RED  = '#D8241C';
-export const KPU_BLUE = '#003580';
-export const KPU_GOLD = '#D2B704';
+export const KPU_RED  = '#6B0F1A';
+export const KPU_BLUE = '#4A0A10';
+export const KPU_GOLD = '#C8930A';

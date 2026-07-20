@@ -71,9 +71,9 @@ export default function TombolPrimer({
       if (!disabled) kelasDasar += 'hover:bg-yellow-600 '; // #B45309 (approximate darker gold)
       break;
     case 'outline':
-      kelasDasar += 'bg-white border-2 border-[#003580] text-[#003580] ';
+      kelasDasar += 'bg-white border-2 border-[#6B0F1A] text-[#6B0F1A] ';
       if (!disabled) {
-        kelasDasar += 'hover:bg-[#003580] hover:text-white ';
+        kelasDasar += 'hover:bg-[#6B0F1A] hover:text-white ';
         gayaKhusus = { boxShadow: '0 4px 12px rgba(0, 53, 128, 0.15)' };
       }
       break;
@@ -101,13 +101,13 @@ export default function TombolPrimer({
     default:
       kelasDasar += 'text-white ';
       gayaKhusus = {
-        background: disabled ? '#003580' : '#003580', // Biru KPU
+        background: disabled ? '#4A0A10' : '#6B0F1A', // Maroon KPU
         boxShadow: disabled ? 'none' : '0 4px 12px rgba(0, 53, 128, 0.30)',
       };
       // hover manual lewat className (karena style inline hover sulit di React tanpa pustaka external, 
       // jadi kita gunakan kombinasi tailwind utility untuk hover jika memungkinkan, atau hanya biarkan box-shadow yang mengangkat)
       // Kita tambahkan Tailwind color class untuk fallback hover
-      if (!disabled) kelasDasar += 'hover:bg-[#001f5b] '; // hover ke biru gelap
+      if (!disabled) kelasDasar += 'hover:bg-[#4A0A10] '; // hover ke maroon gelap
       break;
   }
 

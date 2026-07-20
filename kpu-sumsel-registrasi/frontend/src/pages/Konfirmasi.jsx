@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { API_BASE_URL } from '../constants';
-import { generateQRCode } from '../utils/generateQR';
-import { downloadIDCard } from '../utils/generatePDF';
 import { cetakIDCard } from '../utils/printIDCard';
 import StatusBadge from '../components/StatusBadge';
 import HeaderUtama from '../components/HeaderUtama';
@@ -13,7 +11,6 @@ export default function Konfirmasi() {
   const { id } = useParams();
   const [peserta, setPeserta] = useState(null);
   const [acara, setAcara] = useState(null);
-  const [qrCodeUrl, setQrCodeUrl] = useState('');
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -29,8 +26,6 @@ export default function Konfirmasi() {
 
         if (dataP.sukses) {
           setPeserta(dataP.data);
-          const qrUrl = await generateQRCode(dataP.data.id);
-          setQrCodeUrl(qrUrl);
         } else {
           setErrorMsg(dataP.pesan || 'Peserta tidak ditemukan.');
         }
@@ -44,17 +39,6 @@ export default function Konfirmasi() {
     };
     fetchData();
   }, [id]);
-
-  const handleUnduhPDF = () => {
-    if (!peserta) return;
-    const fullData = {
-      ...peserta,
-      nama_acara: acara?.nama_acara,
-      tanggal_acara: acara?.tanggal_acara,
-      lokasi_acara: acara?.lokasi_acara
-    };
-    downloadIDCard(fullData, qrCodeUrl);
-  };
 
   if (loading) {
     return (
@@ -71,7 +55,7 @@ export default function Konfirmasi() {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-[#EEF2F7] px-4 text-center">
         <p className="text-[#DC2626] font-bold text-lg mb-4">{errorMsg}</p>
-        <Link to="/" className="text-[#003580] hover:underline">Kembali ke Halaman Registrasi</Link>
+        <Link to="/" className="text-[#6B0F1A] hover:underline">Kembali ke Halaman Registrasi</Link>
       </div>
     );
   }
@@ -90,7 +74,7 @@ export default function Konfirmasi() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path>
                 </svg>
               </div>
-              <h2 className="font-display text-3xl font-bold text-[#0D1B3E] mb-2">Pendaftaran Berhasil!</h2>
+              <h2 className="font-display text-3xl font-bold text-[#4A0A10] mb-2">Pendaftaran Berhasil!</h2>
               <p className="font-body text-[#5A6A8A]">Simpan ID registrasi Anda sebagai referensi resmi KPU</p>
             </div>
 
@@ -103,11 +87,11 @@ export default function Konfirmasi() {
             <div className="bg-[#EEF2F7] rounded-xl p-6 mb-8 border border-[#E2E8F0]">
               <table className="w-full text-sm font-body">
                 <tbody>
-                  <tr className="border-b border-[#E2E8F0]"><td className="py-3 text-[#5A6A8A] font-medium w-1/3">No. Peserta</td><td className="py-3 font-bold text-[#0D1B3E]">{String(peserta.nomor_urut).padStart(3, '0')}</td></tr>
-                  <tr className="border-b border-[#E2E8F0]"><td className="py-3 text-[#5A6A8A] font-medium">ID Registrasi</td><td className="py-3 font-mono font-bold text-[#003580]">{peserta.id}</td></tr>
-                  <tr className="border-b border-[#E2E8F0]"><td className="py-3 text-[#5A6A8A] font-medium">Nama Lengkap</td><td className="py-3 font-bold text-[#0D1B3E] uppercase">{peserta.nama_lengkap}</td></tr>
-                  <tr className="border-b border-[#E2E8F0]"><td className="py-3 text-[#5A6A8A] font-medium">Instansi</td><td className="py-3 text-[#0D1B3E]">{peserta.instansi}</td></tr>
-                  <tr className="border-b border-[#E2E8F0]"><td className="py-3 text-[#5A6A8A] font-medium">Jabatan</td><td className="py-3 text-[#0D1B3E]">{peserta.jabatan}</td></tr>
+                  <tr className="border-b border-[#E2E8F0]"><td className="py-3 text-[#5A6A8A] font-medium w-1/3">No. Peserta</td><td className="py-3 font-bold text-[#3A0708]">{String(peserta.nomor_urut).padStart(3, '0')}</td></tr>
+                  <tr className="border-b border-[#E2E8F0]"><td className="py-3 text-[#5A6A8A] font-medium">ID Registrasi</td><td className="py-3 font-mono font-bold text-[#6B0F1A]">{peserta.id}</td></tr>
+                  <tr className="border-b border-[#E2E8F0]"><td className="py-3 text-[#5A6A8A] font-medium">Nama Lengkap</td><td className="py-3 font-bold text-[#3A0708] uppercase">{peserta.nama_lengkap}</td></tr>
+                  <tr className="border-b border-[#E2E8F0]"><td className="py-3 text-[#5A6A8A] font-medium">Instansi</td><td className="py-3 text-[#3A0708]">{peserta.instansi}</td></tr>
+                  <tr className="border-b border-[#E2E8F0]"><td className="py-3 text-[#5A6A8A] font-medium">Jabatan</td><td className="py-3 text-[#3A0708]">{peserta.jabatan}</td></tr>
                   <tr><td className="py-3 text-[#5A6A8A] font-medium">Status</td><td className="py-3"><StatusBadge status={peserta.status} /></td></tr>
                 </tbody>
               </table>
@@ -115,7 +99,7 @@ export default function Konfirmasi() {
 
             {/* Visual Preview ID Card */}
             <div className="mb-8">
-              <p className="text-center font-display font-semibold text-[#003580] mb-4">Preview ID Card</p>
+              <p className="text-center font-display font-semibold text-[#6B0F1A] mb-4">Preview ID Card</p>
               <div className="flex justify-center">
                 <IDCard peserta={{ ...peserta, nama_acara: acara?.nama_acara, tanggal_acara: acara?.tanggal_acara, lokasi_acara: acara?.lokasi_acara }} acaraInfo={acara} />
               </div>
@@ -125,10 +109,6 @@ export default function Konfirmasi() {
             <div className="space-y-4">
               <TombolPrimer onClick={async () => { try { await cetakIDCard(); } catch (e) { alert(e.message); } }} fullWidth={true} varian="primer" ukuran="lg">
                 🖨 CETAK ID CARD
-              </TombolPrimer>
-              
-              <TombolPrimer onClick={handleUnduhPDF} fullWidth={true} varian="outline" ukuran="lg">
-                ⬇ UNDUH PDF (QR)
               </TombolPrimer>
               
               <Link to="/cek-status" className="block">

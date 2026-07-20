@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { API_BASE_URL } from '../constants';
-import { generateQRCode } from '../utils/generateQR';
-import { downloadIDCard } from '../utils/generatePDF';
 import { cetakIDCard } from '../utils/printIDCard';
 import StatusBadge from '../components/StatusBadge';
 import HeaderUtama from '../components/HeaderUtama';
@@ -15,7 +13,6 @@ export default function CekStatus() {
   const [acara, setAcara] = useState(null);
   const [searching, setSearching] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
-  const [unduhLoading, setUnduhLoading] = useState(false);
 
   useEffect(() => {
     fetch(`${API_BASE_URL}/acara/info`)
@@ -59,25 +56,6 @@ export default function CekStatus() {
     }
   };
 
-  const handleUnduhUlang = async () => {
-    if (!peserta) return;
-    setUnduhLoading(true);
-    try {
-      const qrUrl = await generateQRCode(peserta.id);
-      const dataLengkap = {
-        ...peserta,
-        nama_acara: acara?.nama_acara,
-        tanggal_acara: acara?.tanggal_acara,
-        lokasi_acara: acara?.lokasi_acara
-      };
-      await downloadIDCard(dataLengkap, qrUrl);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setUnduhLoading(false);
-    }
-  };
-
   return (
     <div className="min-h-screen bg-[#EEF2F7] flex flex-col">
       <HeaderUtama />
@@ -87,7 +65,7 @@ export default function CekStatus() {
         <div className="w-full max-w-2xl mb-6 relative">
           <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#C8972A]"></div>
           <div className="pl-6 py-1">
-            <h2 className="font-display font-bold text-2xl text-[#003580]">Cek Status Pendaftaran</h2>
+            <h2 className="font-display font-bold text-2xl text-[#6B0F1A]">Cek Status Pendaftaran</h2>
             <p className="font-body text-[#5A6A8A]">Masukkan email yang digunakan saat pendaftaran</p>
           </div>
         </div>
@@ -100,7 +78,7 @@ export default function CekStatus() {
                 type="email" 
                 value={email} 
                 onChange={(e) => { setEmail(e.target.value); setErrorMsg(''); }} 
-                className="w-full h-14 px-5 rounded-xl text-base font-body border-[1.5px] border-[#E2E8F0] bg-white text-[#0D1B3E] placeholder:text-[#5A6A8A] focus:outline-none focus:border-[#003580] focus:ring-[3px] focus:ring-[#003580]/12 transition-all duration-200" 
+                className="w-full h-14 px-5 rounded-xl text-base font-body border-[1.5px] border-[#E2E8F0] bg-white text-[#3A0708] placeholder:text-[#5A6A8A] focus:outline-none focus:border-[#6B0F1A] focus:ring-[3px] focus:ring-[#6B0F1A]/12 transition-all duration-200" 
                 placeholder="nama@domain.com" 
               />
             </div>
@@ -129,11 +107,11 @@ export default function CekStatus() {
                 </div>
                 
                 <div className="mb-6">
-                  <p className="font-body font-bold text-[#003580] mb-2">
+                  <p className="font-body font-bold text-[#6B0F1A] mb-2">
                     No. {String(peserta.nomor_urut).padStart(3, '0')} &mdash; <span className="font-mono">{peserta.id}</span>
                   </p>
-                  <h3 className="font-display font-bold text-2xl text-[#0D1B3E] uppercase">{peserta.nama_lengkap}</h3>
-                  <p className="font-body text-[#0D1B3E] mt-1">{peserta.instansi}</p>
+                  <h3 className="font-display font-bold text-2xl text-[#3A0708] uppercase">{peserta.nama_lengkap}</h3>
+                  <p className="font-body text-[#3A0708] mt-1">{peserta.instansi}</p>
                   <p className="font-body text-[#5A6A8A]">{peserta.jabatan}</p>
                 </div>
                 
@@ -148,9 +126,6 @@ export default function CekStatus() {
                 <div className="flex flex-col gap-3">
                   <TombolPrimer onClick={async () => { try { await cetakIDCard(); } catch (e) { alert(e.message); } }} varian="primer" fullWidth>
                     🖨 CETAK ID CARD
-                  </TombolPrimer>
-                  <TombolPrimer onClick={handleUnduhUlang} disabled={unduhLoading} varian="outline" fullWidth>
-                    {unduhLoading ? 'MENYIAPKAN PDF...' : '⬇ UNDUH PDF (QR)'}
                   </TombolPrimer>
                 </div>
               </div>

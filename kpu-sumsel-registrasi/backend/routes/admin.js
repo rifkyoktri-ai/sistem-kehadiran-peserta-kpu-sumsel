@@ -51,6 +51,7 @@ router.post('/batalkan/:id',
   ctrlPeserta.batalkanPeserta);
 router.post('/ganti-peserta', authAdmin, ctrlPeserta.gantiPeserta);
 router.delete('/peserta/:id/hapus', authAdmin, ctrlPeserta.hapusPeserta);
+router.post('/peserta/:id/kirim-ulang-email', authAdmin, ctrlPeserta.kirimUlangEmail);
 
 router.get('/rekap', authAdmin, ctrlAcara.ambilRekapAcara);
 router.get('/export-csv', authAdmin, ctrlAcara.exportCSV);

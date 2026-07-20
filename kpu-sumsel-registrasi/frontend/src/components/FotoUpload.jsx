@@ -24,10 +24,10 @@ export default function FotoUpload({ onChange, required = false, label = 'Upload
 
   return (
     <div className="flex flex-col items-center gap-2">
-      <label className="block font-display font-semibold text-sm text-[#0D1B3E] mb-1 self-start">{label}</label>
+      <label className="block font-display font-semibold text-sm text-[#3A0708] mb-1 self-start">{label}</label>
       <div
         onClick={() => inputRef.current.click()}
-        className={`w-full max-w-[180px] h-48 border-2 border-dashed rounded-xl flex items-center justify-center cursor-pointer hover:border-[#003580] overflow-hidden bg-[#EEF2F7] transition-all ${preview ? 'border-[#16A34A]' : 'border-[#E2E8F0]'}`}
+        className={`w-full max-w-[180px] h-48 border-2 border-dashed rounded-xl flex items-center justify-center cursor-pointer hover:border-[#6B0F1A] overflow-hidden bg-[#EEF2F7] transition-all ${preview ? 'border-[#16A34A]' : 'border-[#E2E8F0]'}`}
       >
         {preview ? (
           <img src={preview} alt="Preview" className="w-full h-full object-cover" />

@@ -38,7 +38,7 @@ export async function downloadIDCard(peserta, qrDataURL) {
   doc.rect(0, 0, width, 3, 'F');
 
   // 2. Header Background (Biru KPU - 18mm)
-  doc.setFillColor(0, 53, 128); // #003580
+  doc.setFillColor(107, 15, 26); // #6B0F1A
   doc.rect(0, 3, width, 18, 'F');
 
   // 3. Header Logo & Text

@@ -69,14 +69,14 @@ function LoginForm({ onLogin }) {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#001f5b] px-4" style={{ background: 'linear-gradient(135deg, #001f5b 0%, #003580 100%)' }}>
+    <div className="min-h-screen flex items-center justify-center px-4" style={{ background: 'linear-gradient(135deg, #2A0508 0%, #4A0A10 50%, #3A0708 100%)' }}>
       <div className="max-w-md w-full bg-white rounded-2xl shadow-card p-8 md:p-10 relative overflow-hidden">
         {/* Garis emas atas */}
         <div className="absolute top-0 left-0 right-0 h-1" style={{ background: 'linear-gradient(90deg, #C8972A 0%, #E8B84B 50%, #C8972A 100%)' }}></div>
         
         <div className="text-center mb-8">
           <img src={LOGOKPU_URL} alt="KPU Sumsel" className="h-16 mx-auto mb-4" />
-          <h1 className="text-xl font-bold font-display text-[#0D1B3E] uppercase tracking-wide">KPU Provinsi Sumatera Selatan</h1>
+          <h1 className="text-xl font-bold font-display text-[#6B0F1A] uppercase tracking-wide">KPU Provinsi Sumatera Selatan</h1>
           
           <div className="flex items-center justify-center my-4">
             <div className="h-px w-12 bg-[#E2E8F0]"></div>
@@ -84,13 +84,13 @@ function LoginForm({ onLogin }) {
             <div className="h-px w-12 bg-[#E2E8F0]"></div>
           </div>
 
-          <h2 className="text-xl font-bold font-display text-[#003580]">Panel Petugas Check-in</h2>
+          <h2 className="text-xl font-bold font-display text-[#6B0F1A]">Panel Petugas Check-in</h2>
           <p className="text-sm font-body text-[#5A6A8A] mt-2">Pilih acara & masukkan password petugas</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-semibold text-[#0D1B3E] mb-2">Pilih Acara Sesi Hari-H</label>
+            <label className="block text-xs font-semibold text-[#6B0F1A] mb-2">Pilih Acara Sesi Hari-H</label>
             {loadingAcara ? (
               <p className="text-xs text-gray-500 animate-pulse">Memuat daftar acara...</p>
             ) : daftarAcara.length === 0 ? (
@@ -99,7 +99,7 @@ function LoginForm({ onLogin }) {
               <select
                 value={idAcara}
                 onChange={(e) => setIdAcara(e.target.value)}
-                className="w-full h-12 border border-[#E2E8F0] rounded-xl px-3 text-sm focus:outline-none focus:border-[#003580]"
+                className="select-kpu"
               >
                 {daftarAcara.map((ac) => (
                   <option key={ac.id} value={ac.id}>{ac.nama_acara} ({ac.kode_acara})</option>
@@ -109,18 +109,18 @@ function LoginForm({ onLogin }) {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-[#0D1B3E] mb-2">Password Petugas</label>
+            <label className="kpu-form-label">Password Petugas</label>
             <input
               type="password" value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full h-12 border border-[#E2E8F0] rounded-xl px-4 text-center tracking-widest focus:outline-none focus:border-[#003580] focus:ring-[3px] focus:ring-[#003580]/12 transition-all font-mono"
+              className="input-kpu text-center tracking-widest font-mono"
               placeholder="••••••••" required
             />
           </div>
           {error && <p className="text-sm text-[#B91C1C] text-center font-medium bg-[#FEE2E2] p-2 rounded-lg">{error}</p>}
-          <TombolPrimer type="submit" varian="primer" ukuran="lg" fullWidth={true} disabled={loading || loadingAcara || daftarAcara.length === 0}>
+          <button type="submit" className="btn-kpu w-full" disabled={loading || loadingAcara || daftarAcara.length === 0}>
             {loading ? 'MEMPROSES...' : 'MASUK PANEL'}
-          </TombolPrimer>
+          </button>
         </form>
       </div>
     </div>
@@ -245,9 +245,10 @@ function CariTab({ password, acaraId }) {
       />
 
       <div className="bg-white rounded-2xl shadow-sm p-6 mb-8 border border-[#E2E8F0]">
-        <div className="flex items-center gap-3 mb-6 relative">
-          <div className="absolute left-[-24px] top-0 bottom-0 w-1 bg-[#C8972A]"></div>
-          <h3 className="font-display font-semibold text-lg text-[#0D1B3E]">Cari Peserta</h3>
+        <div className="kpu-section-header mb-6" style={{ zIndex: 1 }}>
+          <div className="kpu-dots" />
+          <div className="kpu-line-gold" />
+          <h3 className="kpu-section-title">Cari Peserta</h3>
         </div>
 
         <div className="flex flex-col md:flex-row gap-4">
@@ -255,11 +256,11 @@ function CariTab({ password, acaraId }) {
             type="text" placeholder="Ketik nama, ID, atau email..."
             value={keyword} onChange={(e) => setKeyword(e.target.value)}
             onKeyDown={handleKey}
-            className="flex-1 border-[1.5px] border-[#E2E8F0] rounded-xl px-4 h-14 focus:outline-none focus:border-[#003580] focus:ring-[3px] focus:ring-[#003580]/12 text-[#0D1B3E] font-body transition-all"
+            className="input-kpu flex-1"
           />
-          <TombolPrimer onClick={cariPeserta} disabled={loading} className="h-14 min-w-[120px]">
+          <button onClick={cariPeserta} disabled={loading} className="btn-kpu h-14 min-w-[120px]">
             {loading ? '...' : 'CARI'}
-          </TombolPrimer>
+          </button>
         </div>
         
         {msg && !peserta && (
@@ -285,7 +286,26 @@ function CariTab({ password, acaraId }) {
   );
 }
 
+function waktuRelatif(dateStr) {
+  if (!dateStr) return '';
+  const waktu = new Date(dateStr);
+  const now = new Date();
+  const diffDetik = Math.floor((now - waktu) / 1000);
+  const diffMenit = Math.floor(diffDetik / 60);
+  const diffJam = Math.floor(diffMenit / 60);
+  const timeStr = waktu.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+  if (diffDetik < 60) return `Check-in beberapa detik yang lalu (${timeStr})`;
+  if (diffMenit < 60) return `Check-in ${diffMenit} menit yang lalu (${timeStr})`;
+  if (diffJam < 24) return `Check-in ${diffJam} jam yang lalu (${timeStr})`;
+  return `Check-in kemarin (${timeStr})`;
+}
+
 function HasilValidasiCard({ peserta, msg, sudahHadir, tandaiHadir, cetakUlang, onFotoClick, onPreviewIDCard, uploadingFoto }) {
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick(t => t + 1), 30000);
+    return () => clearInterval(id);
+  }, []);
   const isBatal = peserta.status === 'membatalkan' || peserta.status === 'digantikan';
   const isHadir = peserta.status === 'hadir';
   const isTerdaftar = peserta.status === 'terdaftar';
@@ -320,7 +340,7 @@ function HasilValidasiCard({ peserta, msg, sudahHadir, tandaiHadir, cetakUlang, 
 
       {isHadir && (
         <p className="text-[#92400E] font-medium mb-4 bg-white/50 p-2 rounded inline-block">
-          Check-in tercatat pada: {peserta.waktu_checkin?.slice(0, 19).replace('T', ' ')}
+          {waktuRelatif(peserta.waktu_checkin)}
         </p>
       )}
 
@@ -351,9 +371,9 @@ function HasilValidasiCard({ peserta, msg, sudahHadir, tandaiHadir, cetakUlang, 
       {(isTerdaftar || isHadir) && (
         <div className={isTerdaftar ? 'space-y-4' : 'mb-4'}>
           {isTerdaftar && (
-            <TombolPrimer onClick={tandaiHadir} varian="sukses" ukuran="lg" fullWidth={true}>
+            <button onClick={tandaiHadir} className="btn-kpu w-full">
               TANDAI HADIR
-            </TombolPrimer>
+            </button>
           )}
           <div className="flex justify-center gap-3 mt-3">
             {onFotoClick && (
@@ -491,9 +511,10 @@ function ScanTab({ password, acaraId }) {
       />
 
       <div className="bg-white rounded-2xl shadow-sm p-6 mb-8 border border-[#E2E8F0]">
-        <div className="flex items-center gap-3 mb-2 relative">
-          <div className="absolute left-[-24px] top-0 bottom-0 w-1 bg-[#C8972A]"></div>
-          <h3 className="font-display font-semibold text-lg text-[#0D1B3E]">Scan QR Code</h3>
+        <div className="kpu-section-header mb-2" style={{ zIndex: 1 }}>
+          <div className="kpu-dots" />
+          <div className="kpu-line-gold" />
+          <h3 className="kpu-section-title">Scan QR Code</h3>
         </div>
         
         <QRScanner onScan={cariHasilScan} />
@@ -588,8 +609,8 @@ function WalkinTab({ password, acaraId }) {
             <span className="text-[#15803D]">✅</span>
             <p className="font-display font-bold text-lg text-[#15803D]">Walk-in Berhasil (Otomatis Check-in)</p>
           </div>
-          <p className="font-bold text-xl text-[#0D1B3E] uppercase">{hasil.nama_lengkap}</p>
-          <p className="font-mono text-[#003580] mt-1 font-bold">ID: {hasil.id}</p>
+          <p className="font-bold text-xl text-[#4A0A10] uppercase">{hasil.nama_lengkap}</p>
+          <p className="font-mono text-[#6B0F1A] mt-1 font-bold">ID: {hasil.id}</p>
           <div className="flex gap-3 mt-3">
             <button
               onClick={() => setIdCardTarget(hasil)}
@@ -602,9 +623,10 @@ function WalkinTab({ password, acaraId }) {
       )}
       
       <div className="bg-white rounded-2xl shadow-card p-8 border border-[#E2E8F0]">
-        <div className="flex items-center gap-3 mb-2 relative">
-          <div className="absolute left-[-32px] top-0 bottom-0 w-1 bg-[#C8972A]"></div>
-          <h3 className="font-display font-semibold text-xl text-[#0D1B3E]">Registrasi Walk-in</h3>
+        <div className="kpu-section-header mb-2" style={{ zIndex: 1 }}>
+          <div className="kpu-dots" />
+          <div className="kpu-line-gold" />
+          <h3 className="kpu-section-title">Registrasi Walk-in</h3>
         </div>
         <p className="text-sm text-[#5A6A8A] font-body mb-8">Peserta datang langsung tanpa registrasi online.</p>
         <FormRegistrasi
@@ -625,6 +647,12 @@ export default function CheckIn() {
   const { token: authToken, level, acaraId: authAcaraId, login, logout, isAuthenticated } = useAuth();
   const [token, setToken] = useState(authToken);
   const [tab, setTab] = useState('cari');
+  const [waktu, setWaktu] = useState(new Date());
+
+  useEffect(() => {
+    const id = setInterval(() => setWaktu(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
 
   if (!token && !isAuthenticated) {
     return <LoginForm onLogin={(pwd, lvl) => { login(pwd, lvl); setToken(pwd); }} />;
@@ -633,7 +661,7 @@ export default function CheckIn() {
   const effectiveToken = token || authToken;
 
   const TombolKeluar = (
-    <TombolPrimer onClick={() => { logout(); setToken(''); }} varian="bahaya" ukuran="sm" className="bg-[#CC0000]">
+    <TombolPrimer onClick={() => { logout(); setToken(''); }} varian="bahaya" ukuran="sm" style={{ background: '#6B0F1A', border: '1px solid rgba(200,147,10,0.4)', color: '#F5D060' }}>
       Keluar
     </TombolPrimer>
   );
@@ -643,36 +671,65 @@ export default function CheckIn() {
       <HeaderUtama judulPanel="Panel Petugas Check-in" slotKanan={TombolKeluar} />
 
       {/* Status bar */}
-      <div className="bg-[#003580] py-2 px-8 shadow-sm flex items-center justify-between text-white/90 text-sm font-medium">
+      <div 
+        className="py-2 px-8 shadow-sm flex items-center justify-between text-sm font-medium"
+        style={{
+          background: 'linear-gradient(90deg, #2A0508, #3A0708)',
+          borderBottom: '1px solid rgba(200,147,10,0.2)',
+          color: 'rgba(245,208,96,0.8)'
+        }}
+      >
         <div className="flex items-center gap-2">
           <div className="w-2.5 h-2.5 bg-[#16A34A] rounded-full animate-pulse"></div>
           <span>Sistem Aktif</span>
         </div>
-        <div>
-          {new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+        <div style={{ color: 'rgba(245,208,96,0.6)' }}>
+          {waktu.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+          {' · '}
+          {waktu.toLocaleTimeString('id-ID')}
         </div>
       </div>
 
       <main className="flex-1 w-full max-w-5xl mx-auto">
         {/* Navigasi Tab */}
-        <div className="bg-white rounded-[10px] shadow-sm mx-8 mt-6 p-2 flex border border-[#E2E8F0]">
+        <div 
+          className="mx-8 mt-6 p-1 flex"
+          style={{
+            background: 'var(--surface-2, #ffffff)',
+            border: '1.5px solid rgba(200,147,10,0.3)',
+            borderRadius: '10px',
+            padding: '4px'
+          }}
+        >
           {[
             { id: 'scan', label: '📷 Scan QR' },
             { id: 'cari', label: '🔍 Cari Manual' },
             { id: 'walkin', label: '➕ Walk-in' }
-          ].map((t) => (
-            <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
-              className={`flex-1 py-4 px-2 text-center rounded-lg font-display font-bold text-sm md:text-base transition-all ${
-                tab === t.id 
-                ? 'bg-[#003580] text-white shadow-md' 
-                : 'text-[#5A6A8A] hover:bg-[#EEF2F7] hover:text-[#0D1B3E]'
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
+          ].map((t) => {
+            const active = tab === t.id;
+            return (
+              <button
+                key={t.id}
+                onClick={() => setTab(t.id)}
+                className={`flex-1 py-4 px-2 text-center font-display font-bold text-sm md:text-base transition-all group ${
+                  active 
+                  ? 'shadow-md' 
+                  : 'hover:bg-[rgba(200,147,10,0.08)] hover:text-[#6B0F1A]'
+                }`}
+                style={active ? {
+                  background: 'linear-gradient(135deg, #6B0F1A, #4A0A10)',
+                  color: '#FFD700',
+                  borderRadius: '7px',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.3)'
+                } : {
+                  background: 'transparent',
+                  color: 'rgba(107,15,26,0.6)'
+                }}
+              >
+                {t.label}
+              </button>
+            );
+          })}
         </div>
 
         {/* Konten Tab */}

@@ -121,7 +121,7 @@ export default function Registrasi() {
 
   if (loadingAcara) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#EEF2F7] text-[#003580] font-semibold">
+      <div className="min-h-screen flex items-center justify-center bg-[#EEF2F7] text-[#6B0F1A] font-semibold">
         <div className="flex flex-col items-center">
           <div className="h-8 bg-gray-200 rounded animate-pulse w-48 mb-4"></div>
           <div className="h-4 bg-gray-200 rounded animate-pulse w-32"></div>
@@ -134,16 +134,18 @@ export default function Registrasi() {
   const registrasiTutup = acara && (acara.status_registrasi === 'tutup' || kuotaHabis);
 
   const namaAcara = acara?.nama_acara || 'KEGIATAN KPU PROVINSI SUMATERA SELATAN';
-  const tanggal   = acara?.tanggal_acara || 'Tanggal belum ditentukan';
+  const tanggal   = acara?.tanggal_acara 
+    ? new Date(acara.tanggal_acara).toLocaleDateString('id-ID', {day:'2-digit', month:'long', year:'numeric'})
+    : 'Tanggal belum ditentukan';
   const waktu     = acara?.waktu_acara   || 'Waktu belum ditentukan';
   const lokasi    = acara?.lokasi_acara  || 'Lokasi belum ditentukan';
 
   const kelasInput = `
     w-full px-4 py-3 rounded-lg text-sm font-body
-    border-[1.5px] border-[#E2E8F0] bg-white text-[#0D1B3E]
+    border-[1.5px] border-[#E2E8F0] bg-white text-[#3A0708]
     placeholder:text-[#5A6A8A]
-    focus:outline-none focus:border-[#003580]
-    focus:ring-[3px] focus:ring-[#003580]/12
+    focus:outline-none focus:border-[#6B0F1A]
+    focus:ring-[3px] focus:ring-[#6B0F1A]/12
     transition-all duration-200
   `;
 
@@ -157,22 +159,46 @@ export default function Registrasi() {
       <main className="flex-1">
         {/* Banner Acara */}
         <section
-          style={{ background: 'linear-gradient(160deg, #001f5b 0%, #003580 100%)' }}
-          className="py-14 px-8"
+          style={{ background: 'linear-gradient(135deg, #2A0508 0%, #4A0A10 50%, #3A0708 100%)' }}
+          className="py-14 px-8 relative overflow-hidden"
         >
-          <div className="max-w-4xl mx-auto">
+          {/* Dekorasi 1: Pola titik */}
+          <div style={{
+            position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 0,
+            backgroundImage: 'radial-gradient(circle,rgba(200,147,10,0.07) 1px,transparent 1px)',
+            backgroundSize: '22px 22px'
+          }} />
+
+          {/* Dekorasi 2: Glow tengah */}
+          <div style={{
+            position: 'absolute', width: '400px', height: '400px', borderRadius: '50%',
+            background: 'radial-gradient(circle,rgba(200,147,10,0.06) 0%,transparent 70%)',
+            top: '50%', left: '50%', transform: 'translate(-50%,-50%)',
+            pointerEvents: 'none', zIndex: 0
+          }} />
+
+          {/* Dekorasi 3: Ornamen lingkaran pojok kiri */}
+          <div style={{
+            position: 'absolute', width: '300px', height: '300px', borderRadius: '50%',
+            border: '1px solid rgba(200,147,10,0.08)',
+            top: '-100px', left: '-80px', pointerEvents: 'none', zIndex: 0
+          }} />
+
+          <div className="max-w-4xl mx-auto relative" style={{ zIndex: 1 }}>
             <span
               className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold tracking-widest uppercase mb-6"
-              style={{ background: 'rgba(200,151,42,0.15)', color: '#E8B84B', border: '1px solid rgba(200,151,42,0.4)' }}
+              style={{ background: 'rgba(200,147,10,0.15)', color: '#F5D060', border: '1px solid rgba(200,147,10,0.4)' }}
             >
-              ● Acara Resmi KPU
+              <span style={{ width:'8px', height:'8px', borderRadius:'50%', background:'#C8930A', display:'inline-block' }}></span>
+              Acara Resmi KPU
             </span>
 
-            <h2 className="text-4xl font-extrabold text-white leading-tight mb-2 font-display">
+            <h2 className="text-4xl font-display leading-tight mb-2" style={{ color: '#FFFFFF', fontWeight: 700 }}>
               {namaAcara}
             </h2>
 
-            <div className="h-px w-full my-6" style={{ background: 'rgba(200,151,42,0.4)' }} />
+            {/* Garis pembatas bawah hero */}
+            <div className="w-full my-6" style={{ height: '2px', background: 'linear-gradient(90deg,transparent,#C8930A,#FFD700,#C8930A,transparent)' }} />
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {[
@@ -181,10 +207,10 @@ export default function Registrasi() {
                 ['📍', 'Lokasi', lokasi],
               ].map(([ikon, label, nilai]) => (
                 <div key={label}>
-                  <p className="text-xs font-medium uppercase tracking-wider mb-1" style={{ color: 'rgba(200,151,42,0.8)' }}>
+                  <p className="uppercase mb-1 font-bold" style={{ color: '#C8930A', fontSize: '11px', letterSpacing: '1.5px' }}>
                     {ikon} {label}
                   </p>
-                  <p className="text-base font-semibold text-white">{nilai}</p>
+                  <p className="text-base" style={{ color: '#FFFFFF', fontWeight: 600 }}>{nilai}</p>
                 </div>
               ))}
             </div>
@@ -210,17 +236,19 @@ export default function Registrasi() {
                 {/* Garis kiri emas */}
                 <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#C8972A]"></div>
 
-                <div className="mb-6">
-                  <h3 className="font-display font-bold text-2xl text-[#003580] mb-1">Formulir Pendaftaran Peserta</h3>
-                  <p className="font-body text-sm text-[#5A6A8A]">Lengkapi data diri Anda dengan benar sesuai identitas</p>
+                <div className="kpu-section-header mb-6" style={{ zIndex: 1 }}>
+                  <div className="kpu-dots" />
+                  <div className="kpu-line-gold" />
+                  <h3 className="kpu-section-title">Formulir Pendaftaran Peserta</h3>
+                  <p className="kpu-section-sub">Lengkapi data diri Anda dengan benar sesuai identitas</p>
                 </div>
 
                 {/* Toggle Tipe Peserta */}
-                <div className="mb-8">
-                  <label className="block font-display font-semibold text-sm text-[#0D1B3E] mb-3">
+                <div className="mb-8 relative z-10">
+                  <label className="kpu-form-label">
                     Tipe Peserta *
                   </label>
-                  <div className="flex gap-3">
+                  <div className="kpu-toggle mb-3">
                     {[
                       { value: 'internal', label: '🏛️ Internal KPU', desc: 'KPU Provinsi / Kab/Kota' },
                       { value: 'eksternal', label: '🤝 Eksternal', desc: 'Instansi Mitra KPU' },
@@ -229,16 +257,12 @@ export default function Registrasi() {
                         key={opt.value}
                         type="button"
                         onClick={() => handleTipeChange(opt.value)}
-                        className="flex-1 flex flex-col items-start px-5 py-4 rounded-xl border-2 transition-all duration-200 text-left"
-                        style={{
-                          borderColor: tipePeserta === opt.value ? '#003580' : '#E2E8F0',
-                          background: tipePeserta === opt.value ? 'rgba(0,53,128,0.06)' : '#fff',
-                        }}
+                        className={`kpu-toggle-btn ${tipePeserta === opt.value ? 'active' : ''}`}
                       >
-                        <span className="font-display font-bold text-sm text-[#0D1B3E]">{opt.label}</span>
-                        <span className="text-xs text-[#5A6A8A] mt-0.5">{opt.desc}</span>
+                        <span className="font-display font-bold text-sm block">{opt.label}</span>
+                        <span className="text-xs opacity-80 mt-0.5 block">{opt.desc}</span>
                         {tipePeserta === opt.value && (
-                          <span className="mt-2 text-[10px] font-bold text-[#003580] bg-[#003580]/10 px-2 py-0.5 rounded-full">
+                          <span className="mt-2 text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/20">
                             DIPILIH ✓
                           </span>
                         )}
@@ -264,14 +288,14 @@ export default function Registrasi() {
                   {/* Baris 1: Instansi + Jabatan */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
-                      <label className="block font-display font-semibold text-sm text-[#0D1B3E] mb-2">
+                      <label className="kpu-form-label">
                         Instansi / Unit Kerja *
                       </label>
                       <select
                         name="instansi"
                         value={form.instansi}
                         onChange={handleInputChange}
-                        className={kelasInput}
+                        className="select-kpu"
                         required
                       >
                         <option value="">-- Pilih Instansi/Unit Kerja --</option>
@@ -284,7 +308,7 @@ export default function Registrasi() {
                           type="text"
                           value={instansiLainnya}
                           onChange={(e) => { setInstansiLainnya(e.target.value); setErrorMsg(''); }}
-                          className={kelasInput + ' mt-2'}
+                          className="input-kpu mt-2"
                           placeholder="Tulis nama instansi Anda..."
                           required
                           autoFocus
@@ -292,7 +316,7 @@ export default function Registrasi() {
                       )}
                     </div>
                     <div>
-                      <label className="block font-display font-semibold text-sm text-[#0D1B3E] mb-2">
+                      <label className="kpu-form-label">
                         Jabatan *
                       </label>
                       {tipePeserta === 'internal' ? (
@@ -300,7 +324,7 @@ export default function Registrasi() {
                           name="jabatan"
                           value={form.jabatan}
                           onChange={handleInputChange}
-                          className={kelasInput}
+                          className="select-kpu"
                           required
                         >
                           <option value="">-- Pilih Jabatan --</option>
@@ -314,7 +338,7 @@ export default function Registrasi() {
                           name="jabatan"
                           value={form.jabatan}
                           onChange={handleInputChange}
-                          className={kelasInput}
+                          className="input-kpu"
                           placeholder="Ketik jabatan Anda..."
                           required
                         />
@@ -323,8 +347,8 @@ export default function Registrasi() {
                   </div>
 
                   {/* Nama Lengkap */}
-                  <div>
-                    <label className="block font-display font-semibold text-sm text-[#0D1B3E] mb-2">
+                  <div className="relative z-10">
+                    <label className="kpu-form-label">
                       Nama Lengkap *
                     </label>
                     <input
@@ -332,16 +356,16 @@ export default function Registrasi() {
                       name="nama_lengkap"
                       value={form.nama_lengkap}
                       onChange={handleInputChange}
-                      className={kelasInput}
+                      className="input-kpu"
                       placeholder="Masukkan nama lengkap sesuai identitas"
                       required
                     />
                   </div>
 
                   {/* Email + No HP */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative z-10">
                     <div>
-                      <label className="block font-display font-semibold text-sm text-[#0D1B3E] mb-2">
+                      <label className="kpu-form-label">
                         Email {tipePeserta === 'eksternal' ? '*' : '(Opsional)'}
                       </label>
                       <input
@@ -349,7 +373,7 @@ export default function Registrasi() {
                         name="email"
                         value={form.email}
                         onChange={handleInputChange}
-                        className={kelasInput}
+                        className="input-kpu"
                         placeholder="Contoh: nama@domain.com"
                         required={tipePeserta === 'eksternal'}
                       />
@@ -358,7 +382,7 @@ export default function Registrasi() {
                       )}
                     </div>
                     <div>
-                      <label className="block font-display font-semibold text-sm text-[#0D1B3E] mb-2">
+                      <label className="kpu-form-label">
                         Nomor HP / WhatsApp *
                       </label>
                       <input
@@ -366,7 +390,7 @@ export default function Registrasi() {
                         name="no_hp"
                         value={form.no_hp}
                         onChange={handleInputChange}
-                        className={kelasInput}
+                        className="input-kpu"
                         placeholder="Minimal 10 digit angka"
                         required
                       />
@@ -374,8 +398,8 @@ export default function Registrasi() {
                   </div>
 
                   {/* Catatan */}
-                  <div>
-                    <label className="block font-display font-semibold text-sm text-[#0D1B3E] mb-2">
+                  <div className="relative z-10">
+                    <label className="kpu-form-label">
                       Catatan Khusus (Opsional)
                     </label>
                     <textarea
@@ -383,7 +407,7 @@ export default function Registrasi() {
                       value={form.catatan}
                       onChange={handleInputChange}
                       rows="3"
-                      className={kelasInput}
+                      className="input-kpu"
                       placeholder="Catatan medis/diet/keterangan pengganti..."
                     ></textarea>
                   </div>
@@ -399,47 +423,45 @@ export default function Registrasi() {
                   {/* Prefix info */}
                   <div
                     className="flex items-center gap-3 px-4 py-3 rounded-lg text-xs font-medium"
-                    style={{ background: tipePeserta === 'internal' ? 'rgba(0,53,128,0.06)' : 'rgba(200,151,42,0.08)', color: '#5A6A8A' }}
+                    style={{ background: tipePeserta === 'internal' ? 'rgba(107,15,26,0.06)' : 'rgba(200,151,42,0.08)', color: '#5A6A8A' }}
                   >
                     <span className="text-base">🪪</span>
                     <span>
                       ID peserta Anda akan menggunakan prefix&nbsp;
-                      <strong style={{ color: tipePeserta === 'internal' ? '#003580' : '#C8972A' }}>
+                      <strong style={{ color: tipePeserta === 'internal' ? '#6B0F1A' : '#C8972A' }}>
                         {tipePeserta === 'internal' ? 'KPU-XXXX' : 'EKS-XXXX'}
                       </strong>
                     </span>
                   </div>
 
                   {/* UU PDP */}
-                  <div className="bg-[#EEF2F7] border border-[#003580] rounded-lg p-4 flex items-start mt-2">
+                  <div className="bg-[#FFF5F5] border border-[#6B0F1A] rounded-lg p-4 flex items-start mt-2">
                     <input
                       id="pdp"
                       type="checkbox"
                       checked={pdpChecked}
                       onChange={(e) => setPdpChecked(e.target.checked)}
-                      className="mt-1 h-5 w-5 rounded border-gray-300 text-[#003580] focus:ring-[#003580]"
+                      className="mt-1 h-5 w-5 rounded border-gray-300 text-[#6B0F1A] focus:ring-[#6B0F1A]"
                     />
-                    <label htmlFor="pdp" className="ml-3 text-sm font-body text-[#0D1B3E] leading-relaxed cursor-pointer">
+                    <label htmlFor="pdp" className="ml-3 text-sm font-body text-[#3A0708] leading-relaxed cursor-pointer">
                       Saya menyetujui penggunaan data pribadi oleh KPU Provinsi Sumatera Selatan untuk
                       keperluan administrasi acara ini sesuai UU PDP No. 27 Tahun 2022.
                     </label>
                   </div>
 
-                  <div className="pt-2">
-                    <TombolPrimer
+                  <div className="pt-2 relative z-10">
+                    <button
                       type="submit"
-                      varian="primer"
-                      ukuran="lg"
-                      fullWidth={true}
+                      className="btn-kpu w-full"
                       disabled={submitting || !pdpChecked}
                     >
                       {submitting ? 'MEMPROSES...' : 'DAFTAR SEKARANG'}
-                    </TombolPrimer>
+                    </button>
                   </div>
                 </form>
 
                 <div className="text-center mt-8 text-sm font-body">
-                  <Link to="/cek-status" className="text-[#003580] font-semibold hover:underline">
+                  <Link to="/cek-status" className="text-[#6B0F1A] font-semibold hover:underline">
                     Sudah terdaftar? Cek status di sini →
                   </Link>
                 </div>

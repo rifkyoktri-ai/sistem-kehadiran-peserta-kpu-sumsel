@@ -3,26 +3,46 @@ import { LOGOKPU_URL } from '../constants/logo';
 
 export default function HeaderUtama({ judulPanel, slotKanan }) {
   return (
-    <header>
-      {/* Background gradient */}
-      <div 
-        style={{ background: 'linear-gradient(135deg, #A81A14 0%, #D8241C 60%, #0D1B3E 100%)' }}
-        className="px-8 py-5"
-      >
+    <header style={{
+      background: 'linear-gradient(90deg, #2A0508 0%, #4A0A10 50%, #3A0708 100%)',
+      borderBottom: '2px solid #C8930A',
+      position: 'relative',
+      overflow: 'hidden'
+    }}>
+      {/* Shimmer line atas navbar */}
+      <div style={{
+        position: 'absolute', top: 0, left: 0, right: 0, height: '1px',
+        background: 'linear-gradient(90deg,transparent,rgba(255,215,0,0.4),transparent)'
+      }} />
+
+      {/* Pola titik dekoratif */}
+      <div style={{
+        position: 'absolute',
+        inset: 0,
+        pointerEvents: 'none',
+        zIndex: 0,
+        backgroundImage: 'radial-gradient(circle, rgba(200,147,10,0.06) 1px, transparent 1px)',
+        backgroundSize: '20px 20px'
+      }} />
+
+      <div className="px-8 py-5 relative" style={{ zIndex: 1 }}>
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           
           {/* Kiri: Logo + Nama Institusi */}
           <div className="flex items-center gap-4">
-            <img src={LOGOKPU_URL} alt="Logo KPU" className="h-14 w-14 object-contain" />
+            <img src={LOGOKPU_URL} alt="Logo KPU"
+              style={{ width: '56px', height: '56px', objectFit: 'contain', flexShrink: 0 }}
+            />
+            
             <div>
-              <p className="text-xs font-semibold tracking-widest text-blue-200 uppercase">
+              <p className="text-xs font-semibold tracking-widest uppercase mb-1" style={{ color: '#FFD700', opacity: 0.9 }}>
                 Komisi Pemilihan Umum
               </p>
-              <h1 className="text-xl font-bold text-white font-display leading-tight">
+              <h1 className="text-xl font-bold font-display leading-tight" style={{ color: '#FFD700' }}>
                 Provinsi Sumatera Selatan
               </h1>
               {judulPanel && (
-                <p className="text-sm font-medium mt-0.5" style={{ color: '#E8B84B' }}>
+                <p className="text-sm font-bold mt-1" style={{ color: '#C8930A' }}>
                   {judulPanel}
                 </p>
               )}
@@ -34,11 +54,6 @@ export default function HeaderUtama({ judulPanel, slotKanan }) {
           
         </div>
       </div>
-
-      {/* Garis emas */}
-      <div className="h-1" style={{
-        background: 'linear-gradient(90deg, #C8972A 0%, #E8B84B 50%, #C8972A 100%)'
-      }} />
     </header>
   );
 }

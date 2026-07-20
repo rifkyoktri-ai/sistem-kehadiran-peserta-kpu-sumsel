@@ -9,6 +9,7 @@ import Registrasi from './pages/Registrasi';
 import Konfirmasi from './pages/Konfirmasi';
 import CekStatus  from './pages/CekStatus';
 import CheckIn    from './pages/CheckIn';
+import MobileCheckin from './pages/MobileCheckin';
 import Admin      from './pages/Admin';
 
 export default function App() {
@@ -22,6 +23,7 @@ export default function App() {
             <Route path="/cek-status"        element={<CekStatus />} />
             <Route path="/checkin"           element={<CheckIn />} />
             <Route path="/admin"             element={<Admin />} />
+            <Route path="/mobile-checkin"    element={<MobileCheckin />} />
           </Routes>
         </BrowserRouter>
       </AuthProvider>

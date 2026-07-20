@@ -47,14 +47,8 @@ export default function FormRegistrasi({ onSubmit, loading, errorMsg, duplicateI
 
   const tampilError = errorMsg || localError;
 
-  const kelasInput = `
-    w-full px-4 py-3 rounded-lg text-sm font-body
-    border-[1.5px] border-[#E2E8F0] bg-white text-[#0D1B3E]
-    placeholder:text-[#5A6A8A]
-    focus:outline-none focus:border-[#003580]
-    focus:ring-[3px] focus:ring-[#003580]/12
-    transition-all duration-200
-  `;
+  const kelasInput = "input-kpu";
+  const kelasSelect = "select-kpu";
 
   return (
     <>
@@ -71,7 +65,7 @@ export default function FormRegistrasi({ onSubmit, loading, errorMsg, duplicateI
         )}
 
         <div>
-          <label className="block font-display font-semibold text-sm text-[#0D1B3E] mb-2">Nama Lengkap *</label>
+          <label className="kpu-form-label">Nama Lengkap *</label>
           <input
             type="text" name="nama_lengkap" value={form.nama_lengkap} onChange={handleChange}
             className={kelasInput}
@@ -81,10 +75,10 @@ export default function FormRegistrasi({ onSubmit, loading, errorMsg, duplicateI
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
-            <label className="block font-display font-semibold text-sm text-[#0D1B3E] mb-2">Instansi *</label>
+            <label className="kpu-form-label">Instansi *</label>
             <select
               name="instansi" value={form.instansi} onChange={handleChange}
-              className={kelasInput} required
+              className={kelasSelect} required
             >
               <option value="">-- Pilih Instansi/Unit Kerja --</option>
               {INSTANSI_OPTIONS.map((item) => (
@@ -93,10 +87,10 @@ export default function FormRegistrasi({ onSubmit, loading, errorMsg, duplicateI
             </select>
           </div>
           <div>
-            <label className="block font-display font-semibold text-sm text-[#0D1B3E] mb-2">Jabatan *</label>
+            <label className="kpu-form-label">Jabatan *</label>
             <select
               name="jabatan" value={form.jabatan} onChange={handleChange}
-              className={kelasInput} required
+              className={kelasSelect} required
             >
               <option value="">-- Pilih Jabatan --</option>
               {JABATAN_OPTIONS.map((item) => (
@@ -108,7 +102,7 @@ export default function FormRegistrasi({ onSubmit, loading, errorMsg, duplicateI
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
-            <label className="block font-display font-semibold text-sm text-[#0D1B3E] mb-2">Email *</label>
+            <label className="kpu-form-label">Email *</label>
             <input
               type="email" name="email" value={form.email} onChange={handleChange}
               className={kelasInput}
@@ -116,7 +110,7 @@ export default function FormRegistrasi({ onSubmit, loading, errorMsg, duplicateI
             />
           </div>
           <div>
-            <label className="block font-display font-semibold text-sm text-[#0D1B3E] mb-2">No. HP *</label>
+            <label className="kpu-form-label">No. HP *</label>
             <input
               type="text" name="no_hp" value={form.no_hp} onChange={handleChange}
               className={kelasInput}
@@ -126,7 +120,7 @@ export default function FormRegistrasi({ onSubmit, loading, errorMsg, duplicateI
         </div>
 
         <div>
-          <label className="block font-display font-semibold text-sm text-[#0D1B3E] mb-2">Catatan (Opsional)</label>
+          <label className="kpu-form-label">Catatan (Opsional)</label>
           <textarea
             name="catatan" value={form.catatan} onChange={handleChange} rows="2"
             className={kelasInput}
@@ -144,28 +138,26 @@ export default function FormRegistrasi({ onSubmit, loading, errorMsg, duplicateI
           }}
         />
 
-        <div className="bg-[#EEF2F7] border border-[#003580] rounded-lg p-4 flex items-start mt-2">
+        <div className="bg-[#FFF5F5] border border-[#6B0F1A] rounded-lg p-4 flex items-start mt-2">
           <input
             id="pdp" type="checkbox" checked={pdpChecked}
             onChange={(e) => setPdpChecked(e.target.checked)}
-            className="mt-1 h-5 w-5 rounded border-gray-300 text-[#003580] focus:ring-[#003580]"
+            className="mt-1 h-5 w-5 rounded border-gray-300 text-[#6B0F1A] focus:ring-[#6B0F1A]"
           />
-          <label htmlFor="pdp" className="ml-3 text-sm font-body text-[#0D1B3E] leading-relaxed cursor-pointer">
+          <label htmlFor="pdp" className="ml-3 text-sm font-body text-[#3A0708] leading-relaxed cursor-pointer">
             Saya menyetujui penggunaan data pribadi oleh KPU Provinsi Sumatera Selatan untuk 
             keperluan administrasi acara ini sesuai UU PDP No. 27 Tahun 2022.
           </label>
         </div>
 
         <div className="pt-2">
-          <TombolPrimer
+          <button
             type="submit"
-            varian="primer"
-            ukuran="lg"
-            fullWidth={true}
+            className="btn-kpu w-full"
             disabled={loading || !pdpChecked}
           >
             {loading ? 'MEMPROSES...' : 'DAFTAR SEKARANG'}
-          </TombolPrimer>
+          </button>
         </div>
       </form>
 

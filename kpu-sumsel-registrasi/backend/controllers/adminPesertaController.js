@@ -6,6 +6,7 @@ const { ambilKoneksiDB } = require('../database/db');
 const { STATUS_PESERTA, AKSI_LOG } = require('../constants');
 const { catatAuditLog } = require('../utils/auditLog');
 const { generateIdPeserta } = require('../utils/helpers');
+const { kirimEmailKonfirmasi } = require('../utils/email');
 
 exports.ambilDaftarPeserta = (req, res) => {
   try {
@@ -194,6 +195,35 @@ exports.hapusPeserta = (req, res) => {
       pesan: `Peserta ${peserta.nama_lengkap} (${peserta.id}) telah dihapus permanen.`,
       data: null,
     });
+  } catch (err) {
+    return res.status(500).json({ sukses: false, pesan: err.message, data: null });
+  }
+};
+
+exports.kirimUlangEmail = async (req, res) => {
+  try {
+    const db = ambilKoneksiDB();
+    const peserta = db.prepare(`
+      SELECT p.*, a.nama_acara, a.tanggal_acara, a.lokasi_acara, a.waktu_acara
+      FROM peserta p
+      JOIN acara a ON p.acara_id = a.id
+      WHERE p.id = ?
+    `).get(req.params.id);
+
+    if (!peserta) {
+      return res.status(404).json({ sukses: false, pesan: 'Peserta tidak ditemukan.', data: null });
+    }
+
+    if (!peserta.email) {
+      return res.status(400).json({ sukses: false, pesan: 'Peserta tidak memiliki email untuk dikirimi.', data: null });
+    }
+
+    const hasil = await kirimEmailKonfirmasi(peserta);
+
+    if (hasil.terkirim) {
+      return res.json({ sukses: true, pesan: 'Email berhasil dikirim ulang.', data: { email: peserta.email, id: peserta.id } });
+    }
+    return res.status(500).json({ sukses: false, pesan: 'Gagal mengirim email: ' + (hasil.alasan || 'unknown'), data: null });
   } catch (err) {
     return res.status(500).json({ sukses: false, pesan: err.message, data: null });
   }

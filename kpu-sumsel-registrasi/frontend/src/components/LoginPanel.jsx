@@ -55,7 +55,7 @@ const LoginPanel = ({ judul, onLoginBerhasil, levelAkses }) => {
 
   return (
     <div className="max-w-md mx-auto p-6 bg-white rounded shadow-lg">
-      <h2 className="text-2xl font-semibold mb-4 text-center" style={{ color: '#003580' }}>
+      <h2 className="text-2xl font-semibold mb-4 text-center" style={{ color: '#6B0F1A' }}>
         {judul}
       </h2>
       {loggedIn ? (

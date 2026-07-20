@@ -12,6 +12,7 @@ const path = require('path');
 
 const { inisialisasiDB, ambilKoneksiDB, tutupKoneksiDB } = require('./database/db');
 const { jalankanMigrasi } = require('./database/migrations');
+const { inisialisasiEmail } = require('./utils/email');
 
 // Import semua router
 const routerPeserta = require('./routes/peserta');
@@ -44,7 +45,7 @@ app.use(cors({
     return callback(new Error('Diblokir oleh kebijakan CORS.'));
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'x-password', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'x-password', 'x-acara-id', 'Authorization'],
 }));
 
 app.use(express.json({ limit: '5mb' }));
@@ -125,6 +126,7 @@ async function start() {
   try {
     await inisialisasiDB();
     jalankanMigrasi();
+    inisialisasiEmail();
     dbReady = true;
 
     server = app.listen(PORT, () => {
