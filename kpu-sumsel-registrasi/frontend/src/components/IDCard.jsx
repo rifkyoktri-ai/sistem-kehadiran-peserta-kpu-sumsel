@@ -14,22 +14,22 @@ export default function IDCard({ peserta, acaraInfo }) {
   const [fotoError, setFotoError] = useState(false);
 
   useEffect(() => {
-    if (peserta?.nomor_urut) {
-      QRCode.toDataURL(String(peserta.nomor_urut), {
+    if (peserta?.id) {
+      QRCode.toDataURL(String(peserta.id), {
         width: 64,
         margin: 1,
         color: { dark: '#3D0C0C', light: '#FFFFFF' },
       }).then(url => setQrDataUrl(url));
     }
-  }, [peserta?.nomor_urut]);
+  }, [peserta?.id]);
 
   const handleFotoError = useCallback(() => setFotoError(true), []);
 
   if (!peserta) return null;
 
-  const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
+  const BASE = (import.meta.env.VITE_API_URL || '').replace('/api', '');
   const fotoUrl = peserta.foto_path && !fotoError
-    ? `${apiBase}/${peserta.foto_path}`
+    ? `${BASE}/${peserta.foto_path}`
     : null;
 
   const isInternal = peserta.tipe_peserta === 'internal';
@@ -179,7 +179,7 @@ export default function IDCard({ peserta, acaraInfo }) {
           color: '#fff', letterSpacing: '0.5px',
           lineHeight: 1.3, marginBottom: '3px',
         }}>
-          {peserta.nama}
+          {peserta.nama_lengkap}
         </div>
         <div style={{
           fontSize: '9px', color: '#C8930A',
@@ -254,6 +254,7 @@ export default function IDCard({ peserta, acaraInfo }) {
           {/* FIX 1 — QR sebagai <img> data URL */}
           {qrDataUrl && (
             <img
+              id="qr-code-img"
               src={qrDataUrl}
               alt="QR Code"
               width={64}

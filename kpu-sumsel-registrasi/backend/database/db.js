@@ -8,6 +8,7 @@
 const path = require('path');
 const fs = require('fs');
 const initSqlJs = require('sql.js');
+const logger = require('../utils/logger');
 
 const LOKASI_DB = path.join(__dirname, 'kpu_registrasi.db');
 
@@ -142,7 +143,7 @@ async function inisialisasiDB() {
   _db.pragma('journal_mode = WAL');
   _db.pragma('foreign_keys = ON');
 
-  console.log('[DB] Database siap:', LOKASI_DB);
+  logger.info({ path: LOKASI_DB }, 'Database siap');
   return _db;
 }
 
@@ -157,7 +158,7 @@ function tutupKoneksiDB() {
   if (_db) {
     _db.close();
     _db = null;
-    console.log('[DB] Koneksi database ditutup.');
+    logger.info('Koneksi database ditutup.');
   }
 }
 

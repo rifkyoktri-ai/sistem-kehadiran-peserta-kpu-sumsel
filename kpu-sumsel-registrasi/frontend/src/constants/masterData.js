@@ -27,23 +27,23 @@ export const INSTANSI_OPTIONS = [
 
 /** Jabatan Internal KPU (pilihan tetap) */
 export const JABATAN_OPTIONS = [
-  "Ketua",
-  "Anggota",
-  "Sekretaris",
+  "KETUA",
+  "ANGGOTA",
+  "SEKRETARIS",
   "KABAG",
   "KASUBBAG",
-  "Jabatan Fungsional",
-  "Pelaksana",
-  "Admin/Operator",
+  "JABATAN FUNGSIONAL",
+  "PELAKSANA",
+  "ADMIN/OPERATOR",
 ];
 
 /** Instansi Eksternal */
 export const EXTERNAL_INSTANSI_OPTIONS = [
-  "Pangdam II/Sriwijaya",
-  "Kepolisian Daerah Sumatera Selatan",
-  "Kanwil Dirjen Provinsi Sumatera Selatan",
-  "Bawaslu Provinsi Sumatera Selatan",
-  "Disdukcapil Provinsi Sumatera Selatan",
-  "Kesbangpol Provinsi Sumatera Selatan",
+  "KODAM II SRIWIJAYA",
+  "KEPOLISIAN DAERAH SUMATERA SELATAN",
+  "KANWIL DIRJEN PERMASYARAKATAN PROVINSI SUMATERA SELATAN",
+  "BAWASLU PROVINSI SUMATERA SELATAN",
+  "DISDUKCAPIL PROVINSI SUMATERA SELATAN",
+  "KESBANGPOL PROVINSI SUMATERA SELATAN",
   "Lainnya",
 ];

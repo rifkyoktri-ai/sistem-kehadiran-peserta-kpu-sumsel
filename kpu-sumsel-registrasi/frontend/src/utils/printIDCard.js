@@ -1,82 +1,61 @@
 import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
+import QRCode from 'qrcode';
 
-function toDataURL(src) {
-  return new Promise(res => {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => {
-      const c = document.createElement('canvas');
-      c.width = img.naturalWidth;
-      c.height = img.naturalHeight;
-      c.getContext('2d').drawImage(img, 0, 0);
-      res(c.toDataURL('image/png'));
-    };
-    img.onerror = () => res(null);
-    img.src = src;
-  });
-}
-
-async function prepareClone(element) {
-  const clone = element.cloneNode(true);
-  const imgs = Array.from(clone.querySelectorAll('img'));
-  await Promise.all(imgs.map(async (img) => {
-    const dataUrl = await toDataURL(img.src);
-    if (dataUrl) img.src = dataUrl;
-  }));
-  return clone;
-}
-
-export async function cetakIDCard(nomorUrut = 'IDCard') {
+export async function cetakIDCard(peserta = null) {
   const element = document.getElementById('id-card-print');
   if (!element) return;
 
-  const rect = element.getBoundingClientRect();
-  const w = rect.width;
-  const h = rect.height;
-  if (!w || !h) return;
+  const qrImg = element.querySelector('#qr-code-img');
+  if (qrImg && peserta?.id) {
+    try {
+      const qrDataUrl = await QRCode.toDataURL(String(peserta.id), {
+        width: 64,
+        margin: 1,
+        color: { dark: '#3D0C0C', light: '#FFFFFF' },
+      });
+      if (qrDataUrl !== qrImg.src) {
+        qrImg.src = qrDataUrl;
+        await new Promise((resolve) => {
+          qrImg.onload = resolve;
+          qrImg.onerror = resolve;
+        });
+      }
+    } catch (e) {
+      // proceed without QR
+    }
+  }
 
-  const clone = await prepareClone(element);
+  const images = element.querySelectorAll('img');
+  await Promise.all(Array.from(images).map((img) => {
+    if (img.complete && img.naturalWidth > 0) return Promise.resolve();
+    return new Promise((resolve) => {
+      img.onload = resolve;
+      img.onerror = resolve;
+    });
+  }));
 
-  const xmlns = 'http://www.w3.org/2000/svg';
-  const svg = document.createElementNS(xmlns, 'svg');
-  svg.setAttribute('width', w);
-  svg.setAttribute('height', h);
-  svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
-
-  const foreign = document.createElementNS(xmlns, 'foreignObject');
-  foreign.setAttribute('width', '100%');
-  foreign.setAttribute('height', '100%');
-  foreign.setAttribute('requiredExtensions', 'http://www.w3.org/1999/xhtml');
-  foreign.appendChild(clone);
-  svg.appendChild(foreign);
-
-  const svgStr = new XMLSerializer().serializeToString(svg);
-
-  const img = await new Promise((resolve, reject) => {
-    const i = new Image();
-    i.onload = () => resolve(i);
-    i.onerror = () => reject(new Error('SVG foreignObject gagal'));
-    i.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgStr)}`;
+  const canvas = await html2canvas(element, {
+    scale: 3,
+    useCORS: true,
+    allowTaint: true,
+    backgroundColor: null,
+    logging: false,
   });
 
-  const scale = 2;
-  const canvas = document.createElement('canvas');
-  canvas.width = w * scale;
-  canvas.height = h * scale;
-  const ctx = canvas.getContext('2d');
-  ctx.scale(scale, scale);
-  ctx.drawImage(img, 0, 0);
-
-  const ratio = w / h;
-  const pdfW = 105;
-  const pdfH = pdfW / ratio;
+  const rect = element.getBoundingClientRect();
+  const aspectRatio = rect.width / rect.height;
+  const pdfWidth = 105;
+  const pdfHeight = pdfWidth / aspectRatio;
 
   const pdf = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',
-    format: [pdfW, pdfH],
+    format: [pdfWidth, pdfHeight],
   });
 
-  pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, pdfW, pdfH);
+  pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, pdfWidth, pdfHeight);
+
+  const nomorUrut = peserta?.nomor_urut || peserta?.id || 'IDCard';
   pdf.save(`IDCard-${nomorUrut}.pdf`);
 }

@@ -10,21 +10,22 @@ const { body, param } = require('express-validator');
 const { validate } = require('../middleware/validationResult');
 const ctrlPeserta = require('../controllers/adminPesertaController');
 const ctrlAcara = require('../controllers/adminAcaraController');
-const { VALID_INSTANSI, VALID_JABATAN } = require('../constants');
+const logger = require('../utils/logger');
+// VALID_INSTANSI dan VALID_JABATAN tidak digunakan di route ini
 
 const router = express.Router();
 
-// Endpoint login: verifikasi password admin, kembalikan JWT token
+// Endpoint login: verifikasi username & password admin, kembalikan JWT token
 router.post('/login', (req, res) => {
-  const { password } = req.body;
-  const { PASSWORD_ADMIN, JWT_SECRET } = require('../constants');
+  const { username, password } = req.body;
+  const { USERNAME_ADMIN, PASSWORD_ADMIN, JWT_SECRET } = require('../constants');
   const { buatToken } = require('../utils/jwt');
 
-  if (password === PASSWORD_ADMIN) {
+  if (username === USERNAME_ADMIN && password === PASSWORD_ADMIN) {
     const token = buatToken({ aktor: 'admin', level: 'admin', username: 'admin' });
     return res.json({ sukses: true, pesan: 'Login berhasil.', data: { token, level: 'admin', username: 'admin' } });
   }
-  return res.status(401).json({ sukses: false, pesan: 'Password salah.', data: null });
+  return res.status(401).json({ sukses: false, pesan: 'Username atau password salah.', data: null });
 });
 
 // Semua route di sini butuh auth admin
@@ -34,8 +35,8 @@ router.put('/peserta/:id',
   [
     param('id').notEmpty().withMessage('ID peserta wajib diisi.'),
     body('nama_lengkap').optional().isString().isLength({ min: 3 }).withMessage('Nama lengkap minimal 3 karakter.'),
-    body('instansi').optional().isString().isIn(VALID_INSTANSI).withMessage('Nilai instansi tidak valid.'),
-    body('jabatan').optional().isString().isIn(VALID_JABATAN).withMessage('Nilai jabatan tidak valid.'),
+    body('instansi').optional().isString().isLength({ min: 3, max: 150 }).withMessage('Instansi minimal 3 karakter.'),
+    body('jabatan').optional().isString().isLength({ min: 2, max: 100 }).withMessage('Jabatan minimal 2 karakter.'),
     body('no_hp').optional().isString(),
     body('catatan').optional().isString()
   ],
@@ -51,11 +52,12 @@ router.post('/batalkan/:id',
   ctrlPeserta.batalkanPeserta);
 router.post('/ganti-peserta', authAdmin, ctrlPeserta.gantiPeserta);
 router.delete('/peserta/:id/hapus', authAdmin, ctrlPeserta.hapusPeserta);
-router.post('/peserta/:id/kirim-ulang-email', authAdmin, ctrlPeserta.kirimUlangEmail);
+
 
 router.get('/rekap', authAdmin, ctrlAcara.ambilRekapAcara);
 router.get('/export-csv', authAdmin, ctrlAcara.exportCSV);
 router.get('/audit-log', authAdmin, ctrlAcara.ambilAuditLog);
+router.delete('/audit-log', authAdmin, ctrlAcara.resetAuditLog);
 router.get('/pengaturan', authAdmin, ctrlAcara.ambilPengaturanAcara);
 router.put('/pengaturan', authAdmin, ctrlAcara.updatePengaturanAcara);
 
@@ -72,24 +74,17 @@ router.get('/backup', authAdmin, async (req, res) => {
     if (!fs.existsSync(dirBackup)) fs.mkdirSync(dirBackup, { recursive: true });
 
     const db = ambilKoneksiDB();
-    db.pragma('wal_checkpoint(TRUNCATE)');
+    const pesertaCount = db.prepare('SELECT COUNT(*) as c FROM peserta').get().c;
 
     const namaBackup = `kpu_registrasi_${new Date().toISOString().replace(/[:.]/g, '-')}.db`;
     const pathBackup = path.join(dirBackup, namaBackup);
 
     fs.copyFileSync(LOKASI_DB, pathBackup);
 
-    // Verifikasi: buka file backup dan baca jumlah peserta
-    const initSqlJs = require('sql.js');
-    const sqlJsPromise = initSqlJs().then(SQL => {
-      const backupBuffer = fs.readFileSync(pathBackup);
-      const verifikasiDb = new SQL.Database(backupBuffer);
-      const countResult = verifikasiDb.exec('SELECT COUNT(*) as c FROM peserta');
-      const count = countResult.length > 0 ? countResult[0].values[0][0] : 0;
-      verifikasiDb.close();
-      return count;
-    });
-    const pesertaCount = await sqlJsPromise;
+    // Verifikasi: pastikan file backup benar-benar tersalin
+    if (!fs.existsSync(pathBackup) || fs.statSync(pathBackup).size === 0) {
+      throw new Error('File backup gagal diverifikasi.');
+    }
 
     // Rotasi: hapus backup paling lama jika melebihi MAX_BACKUP
     const files = fs.readdirSync(dirBackup)
@@ -100,13 +95,13 @@ router.get('/backup', authAdmin, async (req, res) => {
     while (files.length > MAX_BACKUP) {
       const hapus = files.pop();
       fs.unlinkSync(path.join(dirBackup, hapus.name));
-      console.log('[BACKUP] Rotasi: hapus backup lama', hapus.name);
+      logger.info({ file: hapus.name }, 'Backup rotation: removed old backup');
     }
 
     return res.json({ sukses: true, pesan: 'Backup berhasil.', data: { file: namaBackup, total_peserta: pesertaCount } });
   } catch (err) {
-    console.error('[BACKUP] Gagal:', err.message);
-    return res.status(500).json({ sukses: false, pesan: 'Gagal backup: ' + err.message, data: null });
+    logger.error({ err }, 'Backup failed');
+    return res.status(500).json({ sukses: false, pesan: 'Gagal melakukan backup.', data: null });
   }
 });
 

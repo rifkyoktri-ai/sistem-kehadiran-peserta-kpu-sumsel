@@ -5,20 +5,9 @@
 // Lihat .env.example untuk template konfigurasi.
 // =============================================================================
 
-// Password akses petugas (untuk operasi check-in hari-H)
 const PASSWORD_PETUGAS = process.env.PASSWORD_PETUGAS;
-
-// Password akses admin (untuk manajemen data penuh)
 const PASSWORD_ADMIN = process.env.PASSWORD_ADMIN;
-
-// Validasi: pastikan password sudah dikonfigurasi
-if (!PASSWORD_PETUGAS || !PASSWORD_ADMIN) {
-  console.error('='.repeat(60));
-  console.error('  FATAL: PASSWORD_PETUGAS dan PASSWORD_ADMIN harus diatur di .env');
-  console.error('  Lihat file .env.example untuk contoh konfigurasi.');
-  console.error('='.repeat(60));
-  process.exit(1);
-}
+const USERNAME_ADMIN = process.env.USERNAME_ADMIN;
 
 // Status yang valid untuk kolom 'status' pada tabel peserta
 const STATUS_PESERTA = {
@@ -27,6 +16,9 @@ const STATUS_PESERTA = {
   MEMBATALKAN: 'membatalkan', // Peserta membatalkan kehadiran
   DIGANTIKAN : 'digantikan',  // Peserta digantikan orang lain
 };
+
+// Status untuk soft delete peserta
+const STATUS_DIHAPUS = 'dihapus';
 
 // Aksi yang valid untuk kolom 'aksi' pada tabel audit_log
 const AKSI_LOG = {
@@ -39,8 +31,6 @@ const AKSI_LOG = {
   WALKIN       : 'WALKIN',        // Pendaftaran walk-in hari-H
 };
 
-// Prefix ID peserta — format: KPU-SUMSEL-2026-XXXX
-const PREFIX_ID = 'KPU-SUMSEL-2026-';
 
 // Kuota default peserta maksimal
 const KUOTA_DEFAULT = 500;
@@ -51,8 +41,7 @@ const STATUS_REGISTRASI = {
   TUTUP: 'tutup',
 };
 
-// JWT Secret — digunakan untuk menandatangani token autentikasi
-const JWT_SECRET = process.env.JWT_SECRET || 'kpu-sumsel-jwt-secret-change-in-production';
+const JWT_SECRET = process.env.JWT_SECRET;
 const JWT_EXPIRY = process.env.JWT_EXPIRY || '24h';
 
 const VALID_TIPE_PESERTA = ['internal', 'eksternal'];
@@ -80,12 +69,12 @@ const VALID_INSTANSI = [
 ];
 
 const VALID_INSTANSI_EKSTERNAL = [
-  "Pangdam II/Sriwijaya",
-  "Kepolisian Daerah Sumatera Selatan",
-  "Kanwil Dirjen Provinsi Sumatera Selatan",
-  "Bawaslu Provinsi Sumatera Selatan",
-  "Disdukcapil Provinsi Sumatera Selatan",
-  "Kesbangpol Provinsi Sumatera Selatan",
+  "KODAM II SRIWIJAYA",
+  "KEPOLISIAN DAERAH SUMATERA SELATAN",
+  "KANWIL DIRJEN PERMASYARAKATAN PROVINSI SUMATERA SELATAN",
+  "BAWASLU PROVINSI SUMATERA SELATAN",
+  "DISDUKCAPIL PROVINSI SUMATERA SELATAN",
+  "KESBANGPOL PROVINSI SUMATERA SELATAN",
   "Lainnya",
 ];
 
@@ -108,9 +97,10 @@ const EMAIL_FROM  = process.env.EMAIL_FROM  || 'KPU Sumsel <noreply@kpu-sumsel.g
 module.exports = {
   PASSWORD_PETUGAS,
   PASSWORD_ADMIN,
+  USERNAME_ADMIN,
   STATUS_PESERTA,
+  STATUS_DIHAPUS,
   AKSI_LOG,
-  PREFIX_ID,
   KUOTA_DEFAULT,
   STATUS_REGISTRASI,
   JWT_SECRET,

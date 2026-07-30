@@ -2,7 +2,7 @@
 // UTILITAS HELPERS — Fungsi-fungsi umum yang digunakan di berbagai controller
 // =============================================================================
 
-const { PREFIX_ID } = require('../constants');
+
 
 /**
  * Menghasilkan ID peserta dari nomor urut dan kode acara.
@@ -16,7 +16,7 @@ function generateIdPeserta(nomorUrut, kodeAcara, tipePeserta) {
     internal: 'KPU-',
     eksternal: 'EKS-'
   };
-  const prefix = tipePeserta ? prefixMap[tipePeserta] : (kodeAcara ? `${kodeAcara}-` : PREFIX_ID);
+  const prefix = tipePeserta ? prefixMap[tipePeserta] : (kodeAcara ? `${kodeAcara}-` : 'KPU-');
   return prefix + String(nomorUrut).padStart(4, '0');
 }
 

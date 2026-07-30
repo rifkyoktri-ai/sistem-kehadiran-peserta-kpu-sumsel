@@ -9,6 +9,7 @@
 
 const nodemailer = require('nodemailer');
 const { ambilKoneksiDB } = require('../database/db');
+const logger = require('./logger');
 
 let transporter = null;
 let emailAktif = false;
@@ -22,7 +23,7 @@ function inisialisasiEmail() {
   const { GMAIL_USER, GMAIL_APP_PASSWORD } = process.env;
 
   if (!GMAIL_USER || !GMAIL_APP_PASSWORD) {
-    console.warn('[EMAIL] GMAIL_USER / GMAIL_APP_PASSWORD belum diatur di .env — notifikasi email dinonaktifkan.');
+    logger.warn('GMAIL_USER / GMAIL_APP_PASSWORD belum diatur di .env — notifikasi email dinonaktifkan.');
     emailAktif = false;
     return;
   }
@@ -36,7 +37,7 @@ function inisialisasiEmail() {
   });
 
   emailAktif = true;
-  console.log('[EMAIL] Notifikasi email via Gmail SMTP aktif (' + GMAIL_USER + ').');
+  logger.info('Notifikasi email via Gmail SMTP aktif (' + GMAIL_USER + ').');
 }
 
 /**
@@ -89,7 +90,7 @@ function updateStatusEmail(id, status, waktu) {
       'UPDATE peserta SET email_status = ?, email_terakhir_dicoba = ? WHERE id = ?'
     ).run(status, waktu, id);
   } catch (err) {
-    console.error('[EMAIL] Gagal update status email di DB:', err.message);
+    logger.error({ err }, 'Gagal update status email di DB');
   }
 }
 
@@ -126,11 +127,11 @@ async function kirimEmailKonfirmasi(peserta) {
       html: buatTemplateKonfirmasi(peserta),
     });
     updateStatusEmail(peserta.id, 'terkirim', waktuSekarang);
-    console.log(`[EMAIL] Konfirmasi terkirim ke ${peserta.email} (ID: ${peserta.id})`);
+    logger.info({ email: peserta.email, id: peserta.id }, 'Email konfirmasi terkirim');
     return { terkirim: true };
   } catch (err) {
     updateStatusEmail(peserta.id, 'gagal', waktuSekarang);
-    console.error(`[EMAIL] Gagal mengirim ke ${peserta.email}:`, err.message);
+    logger.error({ err, email: peserta.email, id: peserta.id }, 'Gagal mengirim email konfirmasi');
     return { terkirim: false, alasan: err.message };
   }
 }

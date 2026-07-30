@@ -6,14 +6,9 @@ import HeaderUtama from '../components/HeaderUtama';
 import TombolPrimer from '../components/TombolPrimer';
 import StatusBadge from '../components/StatusBadge';
 import ModalIDCard from '../components/ModalIDCard';
+import { cetakIDCard } from '../utils/printIDCard';
 import { useAuth } from '../context/AuthContext';
-
-function authHeaders(password, extra = {}) {
-  const base = password && password.startsWith('eyJ')
-    ? { 'Authorization': 'Bearer ' + password }
-    : { 'x-password': password };
-  return { ...base, 'Content-Type': 'application/json', ...extra };
-}
+import { getAuthHeader } from '../utils/api';
 
 function LoginForm({ onLogin }) {
   const [password, setPassword] = useState('');
@@ -144,7 +139,7 @@ function CariTab({ password, acaraId }) {
     try {
       const resp = await fetch('/api/checkin/validasi', {
         method: 'POST',
-        headers: authHeaders(password, { 'x-acara-id': acaraId }),
+        headers: getAuthHeader(password, { 'x-acara-id': acaraId }),
         body: JSON.stringify({ identifier: keyword.trim() }),
       });
       const data = await resp.json();
@@ -165,7 +160,7 @@ function CariTab({ password, acaraId }) {
     try {
       const resp = await fetch('/api/checkin/tandai-hadir', {
         method: 'POST',
-        headers: authHeaders(password, { 'x-acara-id': acaraId }),
+        headers: getAuthHeader(password, { 'x-acara-id': acaraId }),
         body: JSON.stringify({ identifier: peserta.id }),
       });
       const data = await resp.json();
@@ -212,7 +207,7 @@ function CariTab({ password, acaraId }) {
     try {
       const resp = await fetch('/api/checkin/cetak-ulang', {
         method: 'POST',
-        headers: authHeaders(password, { 'x-acara-id': acaraId }),
+        headers: getAuthHeader(password, { 'x-acara-id': acaraId }),
         body: JSON.stringify({ id_peserta: peserta.id }),
       });
       const data = await resp.json();
@@ -220,6 +215,7 @@ function CariTab({ password, acaraId }) {
     } catch {
       setMsg('Gagal.');
     }
+    try { await cetakIDCard(peserta); } catch (e) { setMsg('Gagal mencetak PDF.'); }
   };
 
   const handleKey = (e) => { if (e.key === 'Enter') cariPeserta(); };
@@ -253,7 +249,7 @@ function CariTab({ password, acaraId }) {
 
         <div className="flex flex-col md:flex-row gap-4">
           <input
-            type="text" placeholder="Ketik nama, ID, atau email..."
+            type="text" placeholder="Ketik nama atau ID registrasi..."
             value={keyword} onChange={(e) => setKeyword(e.target.value)}
             onKeyDown={handleKey}
             className="input-kpu flex-1"
@@ -413,7 +409,7 @@ function ScanTab({ password, acaraId }) {
     try {
       const resp = await fetch('/api/checkin/validasi', {
         method: 'POST',
-        headers: authHeaders(password),
+        headers: getAuthHeader(password),
         body: JSON.stringify({ identifier: idTerbaca.trim() }),
       });
       const data = await resp.json();
@@ -434,7 +430,7 @@ function ScanTab({ password, acaraId }) {
     try {
       const resp = await fetch('/api/checkin/tandai-hadir', {
         method: 'POST',
-        headers: authHeaders(password),
+        headers: getAuthHeader(password),
         body: JSON.stringify({ identifier: result.id }),
       });
       const data = await resp.json();
@@ -481,7 +477,7 @@ function ScanTab({ password, acaraId }) {
     try {
       const resp = await fetch('/api/checkin/cetak-ulang', {
         method: 'POST',
-        headers: authHeaders(password),
+        headers: getAuthHeader(password),
         body: JSON.stringify({ id_peserta: result.id }),
       });
       const data = await resp.json();
@@ -489,6 +485,7 @@ function ScanTab({ password, acaraId }) {
     } catch {
       setMsg('Gagal.');
     }
+    try { await cetakIDCard(result); } catch (e) { setMsg('Gagal mencetak PDF.'); }
   };
 
   return (
@@ -564,7 +561,7 @@ function WalkinTab({ password, acaraId }) {
     try {
       const resp = await fetch('/api/checkin/walkin', {
         method: 'POST',
-        headers: authHeaders(password),
+        headers: getAuthHeader(password),
         body: JSON.stringify({ ...data, foto_base64: fotoBase64 }),
       });
       const res = await resp.json();

@@ -101,13 +101,13 @@ export default function Konfirmasi() {
             <div className="mb-8">
               <p className="text-center font-display font-semibold text-[#6B0F1A] mb-4">Preview ID Card</p>
               <div className="flex justify-center">
-                <IDCard peserta={{ ...peserta, nama_acara: acara?.nama_acara, tanggal_acara: acara?.tanggal_acara, lokasi_acara: acara?.lokasi_acara }} acaraInfo={acara} />
+                <IDCard peserta={peserta} acaraInfo={acara} />
               </div>
             </div>
 
             {/* Actions */}
             <div className="space-y-4">
-              <TombolPrimer onClick={async () => { try { await cetakIDCard(); } catch (e) { alert(e.message); } }} fullWidth={true} varian="primer" ukuran="lg">
+              <TombolPrimer onClick={async () => { try { await cetakIDCard(peserta); } catch (e) { alert(e.message); } }} fullWidth={true} varian="primer" ukuran="lg">
                 🖨 CETAK ID CARD
               </TombolPrimer>
               

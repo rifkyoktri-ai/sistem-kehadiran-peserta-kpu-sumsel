@@ -41,7 +41,7 @@ export default function ModalIDCard({ terbuka, peserta, onTutup }) {
           <button
             onClick={async () => {
               try {
-                await cetakIDCard();
+                await cetakIDCard(peserta);
               } catch (e) {
                 alert('Gagal mencetak: ' + e.message);
               }

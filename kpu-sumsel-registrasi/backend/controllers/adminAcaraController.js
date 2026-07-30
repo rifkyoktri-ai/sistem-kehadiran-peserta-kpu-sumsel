@@ -2,6 +2,7 @@
 // CONTROLLER ADMIN ACARA — Statistik, Pengaturan & Export CSV (Multi-Acara)
 // =============================================================================
 
+const bcrypt = require('bcrypt');
 const { ambilKoneksiDB } = require('../database/db');
 const { STATUS_PESERTA } = require('../constants');
 
@@ -28,7 +29,7 @@ exports.ambilRekapAcara = (req, res) => {
     const totalMembatalkan = hitungStatus(STATUS_PESERTA.MEMBATALKAN);
     const totalDigantikan = hitungStatus(STATUS_PESERTA.DIGANTIKAN);
     const totalWalkin = db.prepare('SELECT COUNT(*) as total FROM peserta WHERE acara_id = ? AND adalah_walkin = 1').get(targetAcaraId).total;
-    const totalSeluruh = db.prepare('SELECT COUNT(*) as total FROM peserta WHERE acara_id = ?').get(targetAcaraId).total;
+    const totalSeluruh = db.prepare("SELECT COUNT(*) as total FROM peserta WHERE acara_id = ? AND status != 'dihapus'").get(targetAcaraId).total;
     const totalAktif = totalTerdaftar + totalHadir;
 
     return res.json({
@@ -46,7 +47,7 @@ exports.ambilRekapAcara = (req, res) => {
       },
     });
   } catch (err) {
-    return res.status(500).json({ sukses: false, pesan: err.message, data: null });
+    return res.status(500).json({ sukses: false, pesan: 'Terjadi kesalahan internal server.', data: null });
   }
 };
 
@@ -66,7 +67,7 @@ exports.exportCSV = (req, res) => {
     }
 
     const semua = db.prepare('SELECT * FROM peserta WHERE acara_id = ? ORDER BY nomor_urut ASC').all(targetAcaraId);
-    const header = 'No.|ID Registrasi|Nama Lengkap|Instansi|Jabatan|Email|No. HP|Status|Waktu Daftar|Waktu Check-in|Keterangan';
+    const header = 'No.|ID Registrasi|Nama Lengkap|Instansi|Jabatan|No. HP|Status|Waktu Daftar|Waktu Check-in|Keterangan';
 
     const baris = semua.map((p) => [
       p.nomor_urut,
@@ -74,7 +75,7 @@ exports.exportCSV = (req, res) => {
       `"${p.nama_lengkap}"`,
       `"${p.instansi}"`,
       `"${p.jabatan}"`,
-      p.email,
+
       p.no_hp,
       p.status,
       p.waktu_daftar,
@@ -92,7 +93,7 @@ exports.exportCSV = (req, res) => {
     res.setHeader('Content-Disposition', `attachment; filename="${namaFile}"`);
     return res.send('\uFEFF' + isiCSV);
   } catch (err) {
-    return res.status(500).json({ sukses: false, pesan: err.message, data: null });
+    return res.status(500).json({ sukses: false, pesan: 'Terjadi kesalahan internal server.', data: null });
   }
 };
 
@@ -135,7 +136,7 @@ exports.ambilAuditLog = (req, res) => {
       },
     });
   } catch (err) {
-    return res.status(500).json({ sukses: false, pesan: err.message, data: null });
+    return res.status(500).json({ sukses: false, pesan: 'Terjadi kesalahan internal server.', data: null });
   }
 };
 
@@ -176,7 +177,7 @@ exports.ambilPengaturanAcara = (req, res) => {
       }
     });
   } catch (err) {
-    return res.status(500).json({ sukses: false, pesan: err.message, data: null });
+    return res.status(500).json({ sukses: false, pesan: 'Terjadi kesalahan internal server.', data: null });
   }
 };
 
@@ -205,8 +206,20 @@ exports.updatePengaturanAcara = (req, res) => {
 
     for (const col of COLUMNS) {
       if (req.body[col] !== undefined) {
+        let value = String(req.body[col]);
+        if (col === 'password_petugas') {
+          const strongPassword = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
+          if (!strongPassword.test(value)) {
+            return res.status(400).json({
+              sukses: false,
+              pesan: 'Password petugas harus minimal 8 karakter, mengandung huruf besar, huruf kecil, dan angka.',
+              data: null
+            });
+          }
+          value = bcrypt.hashSync(value, 12);
+        }
         setClause.push(`${col} = ?`);
-        params.push(String(req.body[col]));
+        params.push(value);
       }
     }
 
@@ -237,7 +250,7 @@ exports.updatePengaturanAcara = (req, res) => {
       }
     });
   } catch (err) {
-    return res.status(500).json({ sukses: false, pesan: err.message, data: null });
+    return res.status(500).json({ sukses: false, pesan: 'Terjadi kesalahan internal server.', data: null });
   }
 };
 
@@ -257,7 +270,7 @@ exports.ambilSemuaAcara = (req, res) => {
 
     return res.json({ sukses: true, data });
   } catch (err) {
-    return res.status(500).json({ sukses: false, pesan: err.message, data: null });
+    return res.status(500).json({ sukses: false, pesan: 'Terjadi kesalahan internal server.', data: null });
   }
 };
 
@@ -274,6 +287,14 @@ exports.tambahAcara = (req, res) => {
     return res.status(400).json({ sukses: false, pesan: 'Kode acara minimal 3 karakter alphanumeric.', data: null });
   }
 
+  // Validasi kekuatan password petugas
+  if (password_petugas.length < 8) {
+    return res.status(400).json({ sukses: false, pesan: 'Password petugas minimal 8 karakter.', data: null });
+  }
+  if (!/[A-Z]/.test(password_petugas) || !/[a-z]/.test(password_petugas) || !/[0-9]/.test(password_petugas)) {
+    return res.status(400).json({ sukses: false, pesan: 'Password petugas harus mengandung huruf besar, huruf kecil, dan angka.', data: null });
+  }
+
   try {
     const db = ambilKoneksiDB();
 
@@ -286,11 +307,12 @@ exports.tambahAcara = (req, res) => {
     const idAcara = 'ACR-' + Date.now();
     const waktuDibuat = new Date().toISOString();
     const kuota = parseInt(kuota_maksimal || '500', 10);
+    const hashedPassword = bcrypt.hashSync(password_petugas, 12);
 
     db.prepare(`
       INSERT INTO acara (id, kode_acara, nama_acara, tanggal_acara, waktu_acara, lokasi_acara, kuota_maksimal, deadline_registrasi, status_registrasi, password_petugas, waktu_dibuat)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'buka', ?, ?)
-    `).run(idAcara, cleanCode, nama_acara, tanggal_acara, waktu_acara, lokasi_acara, kuota, deadline_registrasi || '', password_petugas, waktuDibuat);
+    `).run(idAcara, cleanCode, nama_acara, tanggal_acara, waktu_acara, lokasi_acara, kuota, deadline_registrasi || '', hashedPassword, waktuDibuat);
 
     return res.status(201).json({
       sukses: true,
@@ -298,7 +320,7 @@ exports.tambahAcara = (req, res) => {
       data: { id: idAcara, kode_acara: cleanCode }
     });
   } catch (err) {
-    return res.status(500).json({ sukses: false, pesan: err.message, data: null });
+    return res.status(500).json({ sukses: false, pesan: 'Terjadi kesalahan internal server.', data: null });
   }
 };
 
@@ -320,6 +342,16 @@ exports.setAcaraAktif = (req, res) => {
 
     return res.json({ sukses: true, pesan: 'Acara aktif berhasil diubah.', data: { id_acara_aktif: id_acara } });
   } catch (err) {
-    return res.status(500).json({ sukses: false, pesan: err.message, data: null });
+    return res.status(500).json({ sukses: false, pesan: 'Terjadi kesalahan internal server.', data: null });
+  }
+};
+
+exports.resetAuditLog = (req, res) => {
+  try {
+    const db = ambilKoneksiDB();
+    db.prepare('DELETE FROM audit_log').run();
+    return res.json({ sukses: true, pesan: 'Seluruh audit log berhasil dihapus.', data: null });
+  } catch (err) {
+    return res.status(500).json({ sukses: false, pesan: 'Terjadi kesalahan internal server.', data: null });
   }
 };

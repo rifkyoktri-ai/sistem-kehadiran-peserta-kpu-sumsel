@@ -55,14 +55,22 @@ Aplikasi berjalan di: `http://localhost:5173`
 
 ---
 
-## Password Default
+## Konfigurasi Password & Keamanan
 
-> ⚠️ **WAJIB diganti sebelum deploy ke produksi!**
+> ⚠️ **SEMUA password dan secret WAJIB diatur melalui file `.env`, bukan di source code!**
 
-| Level   | Password Default      | Lokasi File                        |
-|---------|-----------------------|------------------------------------|
-| Petugas | `KPU2026checkin`      | `backend/constants/index.js`       |
-| Admin   | `KPUAdmin@Sumsel26`   | `backend/constants/index.js`       |
+Salin `.env.example` menjadi `.env` dan isi nilai-nilai berikut:
+
+| Variabel              | Deskripsi                          |
+|-----------------------|-------------------------------------|
+| `PASSWORD_ADMIN`      | Password untuk akses panel Admin    |
+| `PASSWORD_PETUGAS`    | Password untuk akses panel Petugas  |
+| `JWT_SECRET`          | Kunci rahasia JWT (min. 32 byte hex) |
+
+Buat JWT_SECRET yang aman:
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
 
 Password dikirim via HTTP header: `x-password`
 

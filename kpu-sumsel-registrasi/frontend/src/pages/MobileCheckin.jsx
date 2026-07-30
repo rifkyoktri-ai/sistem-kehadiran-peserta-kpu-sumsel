@@ -16,7 +16,7 @@ const MobileCheckin = () => {
   const [walkinAcaraId, setWalkinAcaraId] = useState('');
   const [walkinAcaraList, setWalkinAcaraList] = useState([]);
   const [walkinAuthed, setWalkinAuthed] = useState(false);
-  const [walkinForm, setWalkinForm] = useState({ nama_lengkap: '', instansi: '', jabatan: '', email: '', no_hp: '' });
+  const [walkinForm, setWalkinForm] = useState({ nama_lengkap: '', instansi: '', jabatan: '', no_hp: '' });
   const [walkinFotoBase64, setWalkinFotoBase64] = useState(null);
   const [walkinSubmitting, setWalkinSubmitting] = useState(false);
   const [walkinMsg, setWalkinMsg] = useState('');
@@ -187,8 +187,8 @@ const MobileCheckin = () => {
   };
 
   const walkinSubmit = async () => {
-    const { nama_lengkap, instansi, jabatan, email, no_hp } = walkinForm;
-    if (!nama_lengkap || !instansi || !jabatan || !email || !no_hp) {
+    const { nama_lengkap, instansi, jabatan, no_hp } = walkinForm;
+    if (!nama_lengkap || !instansi || !jabatan || !no_hp) {
       setWalkinMsg('Semua field wajib diisi.');
       return;
     }
@@ -759,7 +759,7 @@ const MobileCheckin = () => {
                     <div style={{fontSize:'11px',color:'rgba(255,255,255,0.5)',fontFamily:'monospace',marginTop:'2px'}}>
                       {walkinHasil?.nomor_urut} — {walkinHasil?.id}
                     </div>
-                    <button onClick={() => { setWalkinHasil(null); setWalkinMsg(''); setWalkinForm({nama_lengkap:'',instansi:'',jabatan:'',email:'',no_hp:''}); setWalkinFotoBase64(null); }}
+                    <button onClick={() => { setWalkinHasil(null); setWalkinMsg(''); setWalkinForm({nama_lengkap:'',instansi:'',jabatan:'',no_hp:''}); setWalkinFotoBase64(null); }}
                       style={{
                         background:'linear-gradient(135deg,#6B0F1A,#4A0A10)',border:'1.5px solid #C8930A',
                         color:'#FFD700',fontSize:'13px',fontWeight:'700',padding:'10px 20px',borderRadius:'8px',cursor:'pointer',marginTop:'10px',
@@ -794,9 +794,7 @@ const MobileCheckin = () => {
                         <option key={j} value={j} style={{background:'#1a0304',color:'#FFD700'}}>{j}</option>
                       ))}
                     </select>
-                    <input placeholder="Email *" type="email" value={walkinForm.email}
-                      onChange={e => setWalkinForm(p => ({...p, email: e.target.value}))}
-                      style={walkinInputStyle} />
+
                     <input placeholder="No. HP *" type="tel" value={walkinForm.no_hp}
                       onChange={e => setWalkinForm(p => ({...p, no_hp: e.target.value}))}
                       style={walkinInputStyle} />

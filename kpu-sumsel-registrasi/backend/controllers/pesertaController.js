@@ -2,13 +2,16 @@
 // CONTROLLER PESERTA — Logika bisnis untuk endpoint publik peserta (Multi-Acara)
 // =============================================================================
 
+const fs = require('fs');
+const path = require('path');
 const { validationResult } = require('express-validator');
 const { ambilKoneksiDB } = require('../database/db');
 const { STATUS_PESERTA, AKSI_LOG, STATUS_REGISTRASI } = require('../constants');
 const { catatAuditLog } = require('../utils/auditLog');
 const { generateIdPeserta } = require('../utils/helpers');
-const { saveBase64Photo } = require('../utils/photo');
+const { saveBase64Photo, generateFilename } = require('../utils/photo');
 const { kirimEmailKonfirmasi } = require('../utils/email');
+const { sanitizeInput } = require('../utils/sanitize');
 
 /**
  * Mengambil acara yang aktif saat ini dari database.
@@ -28,7 +31,7 @@ exports.ambilInfoAcara = (req, res) => {
     }
 
     const totalPeserta = db.prepare(
-      "SELECT COUNT(*) as total FROM peserta WHERE acara_id = ? AND status != 'membatalkan' AND status != 'digantikan'"
+      "SELECT COUNT(*) as total FROM peserta WHERE acara_id = ? AND status != 'membatalkan' AND status != 'digantikan' AND status != 'dihapus'"
     ).get(acara.id);
 
     return res.json({
@@ -49,11 +52,12 @@ exports.ambilInfoAcara = (req, res) => {
       },
     });
   } catch (err) {
-    return res.status(500).json({ sukses: false, pesan: err.message, data: null });
+    return res.status(500).json({ sukses: false, pesan: 'Terjadi kesalahan internal server.', data: null });
   }
 };
 
 exports.daftarPeserta = (req, res) => {
+  let fotoPath = null;
   try {
     const errorValidasi = validationResult(req);
     if (!errorValidasi.isEmpty()) {
@@ -86,35 +90,10 @@ exports.daftarPeserta = (req, res) => {
       }
     }
 
-    const { nama_lengkap, instansi, jabatan, email = '', no_hp, catatan = '', tipe_peserta = 'internal', foto_base64, nik } = req.body;
-    // Enforce mandatory photo for all participant types
+    const { nama_lengkap, instansi, jabatan, no_hp, catatan = '', tipe_peserta = 'internal', foto_base64, nik } = req.body;
+    const bersih = sanitizeInput({ nama_lengkap, instansi, jabatan, catatan }, ['nama_lengkap', 'instansi', 'jabatan', 'catatan']);
     if (!foto_base64) {
-      return res.status(400).json({ error: 'Foto wajib diambil sebelum mendaftar.' });
-    }
-
-    // Cek duplikat berdasarkan NIK/email sesuai tipe
-    if (tipe_peserta === 'internal') {
-      if (nik) {
-        const pesertaNikAda = db.prepare('SELECT id, nama_lengkap AS nama, nomor_urut FROM peserta WHERE nik = ? AND acara_id = ?').get(nik, acara.id);
-        if (pesertaNikAda) {
-          return res.status(409).json({
-            error: 'duplikat',
-            pesan: 'NIK ini sudah terdaftar di acara ini.',
-            data: { nama: pesertaNikAda.nama, nomor_urut: pesertaNikAda.nomor_urut, id: pesertaNikAda.id }
-          });
-        }
-      }
-    } else if (tipe_peserta === 'eksternal') {
-      if (email) {
-        const pesertaEmailAda = db.prepare('SELECT id, nama_lengkap AS nama, nomor_urut FROM peserta WHERE email = ? AND acara_id = ?').get(email, acara.id);
-        if (pesertaEmailAda) {
-          return res.status(409).json({
-            error: 'duplikat',
-            pesan: 'Email ini sudah terdaftar di acara ini.',
-            data: { nama: pesertaEmailAda.nama, nomor_urut: pesertaEmailAda.nomor_urut, id: pesertaEmailAda.id }
-          });
-        }
-      }
+      return res.status(400).json({ sukses: false, pesan: 'Foto wajib diambil sebelum mendaftar.', data: null });
     }
 
     // Cek duplikat berdasarkan no_hp (berlaku untuk semua tipe)
@@ -127,63 +106,57 @@ exports.daftarPeserta = (req, res) => {
       });
     }
 
-    // Cek duplikat email (hanya jika email diisi)
-    if (email) {
-      const pesertaEmailAda = db.prepare('SELECT id FROM peserta WHERE acara_id = ? AND email = ? AND email != \'\'').get(acara.id, email);
-      if (pesertaEmailAda) {
-        return res.status(409).json({
-          sukses: false,
-          pesan: 'Email ini sudah terdaftar untuk acara ini.',
-          data: { id_terdaftar: pesertaEmailAda.id },
-        });
-      }
-    }
-
     const totalAktif = db.prepare(
-      "SELECT COUNT(*) as total FROM peserta WHERE acara_id = ? AND status != 'membatalkan' AND status != 'digantikan'"
+      "SELECT COUNT(*) as total FROM peserta WHERE acara_id = ? AND status != 'membatalkan' AND status != 'digantikan' AND status != 'dihapus'"
     ).get(acara.id);
 
     if (totalAktif.total >= parseInt(acara.kuota_maksimal)) {
       return res.status(409).json({ sukses: false, pesan: 'Kuota pendaftaran sudah penuh.', data: null });
     }
 
-    // Generate nomor urut per tipe peserta — simpan sebagai string berformat prefix
-    const maxRow = db.prepare(
-      'SELECT MAX(nomor_urut) as max FROM peserta WHERE acara_id = ? AND tipe_peserta = ?'
-    ).get(acara.id, tipe_peserta);
-
-    let nextNum = 1;
-    if (maxRow && maxRow.max != null) {
-      const val = String(maxRow.max);
-      // Handle both legacy integer ("3") and prefixed string ("KPU-0003")
-      const match = val.match(/(\d+)$/);
-      if (match) {
-        nextNum = parseInt(match[1], 10) + 1;
+    // Simpan foto sebelum transaksi (file I/O tidak boleh di dalam DB transaction)
+    if (foto_base64) {
+      try {
+        fotoPath = saveBase64Photo(foto_base64, generateFilename());
+      } catch (err) {
+        return res.status(400).json({ sukses: false, pesan: err.message, data: null });
       }
     }
 
-    const prefix = tipe_peserta === 'internal' ? 'KPU' : 'EKS';
-    const nomorUrut = `${prefix}-${String(nextNum).padStart(4, '0')}`;
+    // Transaction: generate nomor urut + INSERT + audit log (cegah race condition)
+    const prosesDaftar = db.transaction(() => {
+      const maxRow = db.prepare(
+        "SELECT MAX(nomor_urut) as max FROM peserta WHERE acara_id = ? AND tipe_peserta = ? AND status != 'dihapus'"
+      ).get(acara.id, tipe_peserta);
 
-    const idBaru = generateIdPeserta(nextNum, acara.kode_acara, tipe_peserta);
-    const waktuDaftar = new Date().toISOString();
+      let nextNum = 1;
+      if (maxRow && maxRow.max != null) {
+        const val = String(maxRow.max);
+        const match = val.match(/(\d+)$/);
+        if (match) {
+          nextNum = parseInt(match[1], 10) + 1;
+        }
+      }
 
-    let fotoPath = null;
-    if (foto_base64) {
-      const filename = `${Date.now()}-${Math.round(Math.random() * 1e6)}.jpg`;
-      fotoPath = saveBase64Photo(foto_base64, filename);
-    }
+      const prefix = tipe_peserta === 'internal' ? 'KPU' : 'EKS';
+      const nomorUrut = `${prefix}-${String(nextNum).padStart(4, '0')}`;
+      const idBaru = generateIdPeserta(nextNum, acara.kode_acara, tipe_peserta);
 
-    db.prepare(`
-      INSERT INTO peserta
-        (id, acara_id, nomor_urut, tipe_peserta, nama_lengkap, instansi, jabatan, email, no_hp, catatan, foto_path, waktu_daftar)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(idBaru, acara.id, nomorUrut, tipe_peserta, nama_lengkap, instansi, jabatan, email, no_hp, catatan, fotoPath, waktuDaftar);
+      db.prepare(`
+        INSERT INTO peserta
+          (id, acara_id, nomor_urut, tipe_peserta, nama_lengkap, instansi, jabatan, no_hp, email, nik, catatan, foto_path, waktu_daftar)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(idBaru, acara.id, nomorUrut, tipe_peserta, bersih.nama_lengkap, bersih.instansi, bersih.jabatan, no_hp, '', nik || null, bersih.catatan, fotoPath, new Date().toISOString());
 
-    catatAuditLog(db, 'sistem', AKSI_LOG.REGISTRASI, idBaru,
-      JSON.stringify({ nama_lengkap, instansi, jabatan, email, tipe_peserta }),
-      acara.id
-    );
+      catatAuditLog(db, 'sistem', AKSI_LOG.REGISTRASI, idBaru,
+        JSON.stringify({ nama_lengkap: bersih.nama_lengkap, instansi: bersih.instansi, jabatan: bersih.jabatan, tipe_peserta }),
+        acara.id
+      );
+
+      return idBaru;
+    });
+
+    const idBaru = prosesDaftar();
 
     // Ambil data peserta beserta info acara pendukung
     const dataBaru = db.prepare(`
@@ -193,9 +166,10 @@ exports.daftarPeserta = (req, res) => {
       WHERE p.id = ?
     `).get(idBaru);
 
-    // Kirim email konfirmasi secara asynchronous — tidak menunda respons ke peserta
-    // dan tidak menggagalkan registrasi jika pengiriman email gagal.
-    kirimEmailKonfirmasi(dataBaru);
+    kirimEmailKonfirmasi(dataBaru).catch(err => {
+      const logger = require('../utils/logger');
+      logger.error({ err, id: dataBaru.id }, 'Email gagal dikirim (non-blokir)');
+    });
 
     return res.status(201).json({
       sukses: true,
@@ -203,8 +177,21 @@ exports.daftarPeserta = (req, res) => {
       data: dataBaru,
     });
   } catch (err) {
-    console.error('[REG ERROR]', err);
-    return res.status(500).json({ sukses: false, pesan: err.message, data: null });
+    const logger = require('../utils/logger');
+    logger.error({ err }, 'Registration error');
+    // Bersihkan file foto orphan jika transaksi gagal
+    if (fotoPath) {
+      try { fs.unlinkSync(path.join(__dirname, '..', fotoPath)); } catch (_) {}
+    }
+    const pesanErr = String(err.message || '');
+    if (pesanErr.includes('UNIQUE constraint failed')) {
+      return res.status(409).json({
+        sukses: false,
+        pesan: 'Data sudah terdaftar. Gunakan email atau nomor HP yang berbeda.',
+        data: null,
+      });
+    }
+    return res.status(500).json({ sukses: false, pesan: 'Terjadi kesalahan internal server.', detail: err.message, data: null });
   }
 };
 
@@ -216,24 +203,44 @@ exports.cekStatusPeserta = (req, res) => {
       return res.status(404).json({ sukses: false, pesan: 'Tidak ada acara yang aktif saat ini.', data: null });
     }
 
-    const email = req.body.email || req.params.email;
-    if (!email) {
-      return res.status(400).json({ sukses: false, pesan: 'Email wajib diisi.', data: null });
+    const { no_hp, id_registrasi } = req.body;
+
+    if (!no_hp && !id_registrasi) {
+      return res.status(400).json({
+        sukses: false,
+        pesan: 'Masukkan nomor HP atau ID registrasi untuk mencari data.',
+        data: null,
+      });
     }
 
-    const peserta = db.prepare(`
-      SELECT p.*, a.nama_acara, a.tanggal_acara, a.lokasi_acara, a.waktu_acara
-      FROM peserta p
-      JOIN acara a ON p.acara_id = a.id
-      WHERE p.acara_id = ? AND p.email = ?
-    `).get(acara.id, email);
+    let peserta = null;
+    if (id_registrasi) {
+      peserta = db.prepare(`
+        SELECT p.*, a.nama_acara, a.tanggal_acara, a.lokasi_acara, a.waktu_acara
+        FROM peserta p
+        JOIN acara a ON p.acara_id = a.id
+        WHERE p.id = ?
+      `).get(id_registrasi);
+
+    } else if (no_hp) {
+      peserta = db.prepare(`
+        SELECT p.*, a.nama_acara, a.tanggal_acara, a.lokasi_acara, a.waktu_acara
+        FROM peserta p
+        JOIN acara a ON p.acara_id = a.id
+        WHERE p.acara_id = ? AND p.no_hp = ?
+      `).get(acara.id, no_hp);
+    }
 
     if (!peserta) {
-      return res.status(404).json({ sukses: false, pesan: 'Email tidak ditemukan pada acara aktif saat ini.', data: null });
+      return res.status(404).json({
+        sukses: false,
+        pesan: 'Data tidak ditemukan pada acara aktif saat ini. Periksa kembali nomor HP atau ID registrasi Anda.',
+        data: null,
+      });
     }
     return res.json({ sukses: true, pesan: 'Data peserta ditemukan.', data: peserta });
   } catch (err) {
-    return res.status(500).json({ sukses: false, pesan: err.message, data: null });
+    return res.status(500).json({ sukses: false, pesan: 'Terjadi kesalahan internal server.', data: null });
   }
 };
 
@@ -252,7 +259,7 @@ exports.infoPesertaById = (req, res) => {
     }
     return res.json({ sukses: true, pesan: 'Data peserta ditemukan.', data: peserta });
   } catch (err) {
-    return res.status(500).json({ sukses: false, pesan: err.message, data: null });
+    return res.status(500).json({ sukses: false, pesan: 'Terjadi kesalahan internal server.', data: null });
   }
 };
 
@@ -271,7 +278,9 @@ const cariByNomorUrut = (req, res) => {
 
     res.json({ peserta });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    const logger = require('../utils/logger');
+    logger.error({ err }, 'cariByNomorUrut error');
+    res.status(500).json({ sukses: false, pesan: 'Terjadi kesalahan internal server.' });
   }
 };
 
@@ -287,16 +296,26 @@ const tandaiHadirById = (req, res) => {
     if (peserta.status === STATUS_PESERTA.HADIR) {
       return res.status(409).json({ sukses: false, pesan: 'Peserta sudah hadir.', peserta });
     }
+    if (peserta.status === STATUS_PESERTA.MEMBATALKAN) {
+      return res.status(409).json({ sukses: false, pesan: 'Peserta telah membatalkan kehadiran.', peserta });
+    }
+    if (peserta.status === STATUS_PESERTA.DIGANTIKAN) {
+      return res.status(409).json({ sukses: false, pesan: 'Peserta ini sudah digantikan.', peserta });
+    }
 
     const waktuCheckin = new Date().toISOString();
     db.prepare(
-      "UPDATE peserta SET status = ?, waktu_checkin = ? WHERE id = ?"
-    ).run(STATUS_PESERTA.HADIR, waktuCheckin, id);
+      "UPDATE peserta SET status = ?, waktu_checkin = ?, petugas_checkin = ? WHERE id = ?"
+    ).run(STATUS_PESERTA.HADIR, waktuCheckin, req.aktor || 'petugas', id);
+
+    catatAuditLog(db, req.aktor || 'petugas', AKSI_LOG.CHECKIN, id,
+      JSON.stringify({ waktu_checkin: waktuCheckin }), peserta.acara_id
+    );
 
     const updated = db.prepare('SELECT * FROM peserta WHERE id = ?').get(id);
     return res.json({ sukses: true, pesan: 'Check-in berhasil.', peserta: updated });
   } catch (err) {
-    return res.status(500).json({ sukses: false, pesan: err.message });
+    return res.status(500).json({ sukses: false, pesan: 'Terjadi kesalahan internal server.' });
   }
 };
 

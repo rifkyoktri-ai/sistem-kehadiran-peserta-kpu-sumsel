@@ -8,7 +8,9 @@ import TombolPrimer from '../components/TombolPrimer';
 import IDCard from '../components/IDCard';
 
 export default function CekStatus() {
-  const [email, setEmail] = useState('');
+  const [caraCari, setCaraCari] = useState('hp');
+  const [noHp, setNoHp] = useState('');
+  const [idRegistrasi, setIdRegistrasi] = useState('');
   const [peserta, setPeserta] = useState(null);
   const [acara, setAcara] = useState(null);
   const [searching, setSearching] = useState(false);
@@ -25,9 +27,13 @@ export default function CekStatus() {
 
   const handleCekStatus = async (e) => {
     e.preventDefault();
-    if (!email) {
-      setErrorMsg('Masukkan email terdaftar Anda.');
-      return;
+    const payload = {};
+    if (caraCari === 'hp') {
+      if (!noHp) { setErrorMsg('Masukkan nomor HP terdaftar Anda.'); return; }
+      payload.no_hp = noHp.trim();
+    } else {
+      if (!idRegistrasi) { setErrorMsg('Masukkan ID registrasi Anda.'); return; }
+      payload.id_registrasi = idRegistrasi.trim();
     }
 
     setSearching(true);
@@ -38,12 +44,12 @@ export default function CekStatus() {
       const res = await fetch(`${API_BASE_URL}/peserta/cek-status`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim() }),
+        body: JSON.stringify(payload),
       });
       const resJson = await res.json();
 
       if (res.status === 404) {
-        setErrorMsg('Email tidak ditemukan dalam daftar peserta.');
+        setErrorMsg('Data tidak ditemukan. Periksa kembali input Anda.');
       } else if (!resJson.sukses) {
         setErrorMsg(resJson.pesan || 'Gagal memeriksa status.');
       } else {
@@ -66,21 +72,55 @@ export default function CekStatus() {
           <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#C8972A]"></div>
           <div className="pl-6 py-1">
             <h2 className="font-display font-bold text-2xl text-[#6B0F1A]">Cek Status Pendaftaran</h2>
-            <p className="font-body text-[#5A6A8A]">Masukkan email yang digunakan saat pendaftaran</p>
+            <p className="font-body text-[#5A6A8A]">Masukkan No. HP yang digunakan saat pendaftaran</p>
           </div>
         </div>
 
         {/* Form Pencarian */}
         <div className="w-full max-w-2xl bg-white rounded-2xl p-6 shadow-card mb-8">
+          {/* Tab Pilihan Metode Cari */}
+          <div className="flex gap-1 mb-5 p-1 bg-[#EEF2F7] rounded-lg">
+            {[
+
+              { id: 'hp', label: 'No. HP' },
+              { id: 'id', label: 'ID Registrasi' },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => { setCaraCari(tab.id); setErrorMsg(''); }}
+                className={`flex-1 py-2.5 text-sm font-bold rounded-md transition-all ${
+                  caraCari === tab.id
+                    ? 'bg-white text-[#6B0F1A] shadow-sm'
+                    : 'text-[#5A6A8A] hover:text-[#6B0F1A]'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
           <form onSubmit={handleCekStatus} className="flex flex-col md:flex-row gap-4">
             <div className="flex-1">
-              <input 
-                type="email" 
-                value={email} 
-                onChange={(e) => { setEmail(e.target.value); setErrorMsg(''); }} 
-                className="w-full h-14 px-5 rounded-xl text-base font-body border-[1.5px] border-[#E2E8F0] bg-white text-[#3A0708] placeholder:text-[#5A6A8A] focus:outline-none focus:border-[#6B0F1A] focus:ring-[3px] focus:ring-[#6B0F1A]/12 transition-all duration-200" 
-                placeholder="nama@domain.com" 
-              />
+
+              {caraCari === 'hp' && (
+                <input 
+                  type="text" 
+                  value={noHp} 
+                  onChange={(e) => { setNoHp(e.target.value); setErrorMsg(''); }} 
+                  className="w-full h-14 px-5 rounded-xl text-base font-body border-[1.5px] border-[#E2E8F0] bg-white text-[#3A0708] placeholder:text-[#5A6A8A] focus:outline-none focus:border-[#6B0F1A] focus:ring-[3px] focus:ring-[#6B0F1A]/12 transition-all duration-200" 
+                  placeholder="08xxxxxxxxxx" 
+                />
+              )}
+              {caraCari === 'id' && (
+                <input 
+                  type="text" 
+                  value={idRegistrasi} 
+                  onChange={(e) => { setIdRegistrasi(e.target.value); setErrorMsg(''); }} 
+                  className="w-full h-14 px-5 rounded-xl text-base font-body border-[1.5px] border-[#E2E8F0] bg-white text-[#3A0708] placeholder:text-[#5A6A8A] focus:outline-none focus:border-[#6B0F1A] focus:ring-[3px] focus:ring-[#6B0F1A]/12 transition-all duration-200 font-mono tracking-wider" 
+                  placeholder="KPU-xxxx atau EKS-xxxx" 
+                />
+              )}
             </div>
             <div className="w-full md:w-auto">
               <TombolPrimer type="submit" disabled={searching} className="h-14 px-8 min-w-[160px]" fullWidth={true}>
@@ -120,11 +160,11 @@ export default function CekStatus() {
                 </div>
 
                 <div className="flex justify-center mb-6">
-                  <IDCard peserta={{ ...peserta, nama_acara: acara?.nama_acara, tanggal_acara: acara?.tanggal_acara, lokasi_acara: acara?.lokasi_acara }} acaraInfo={acara} />
+                  <IDCard peserta={peserta} acaraInfo={acara} />
                 </div>
 
                 <div className="flex flex-col gap-3">
-                  <TombolPrimer onClick={async () => { try { await cetakIDCard(); } catch (e) { alert(e.message); } }} varian="primer" fullWidth>
+                  <TombolPrimer onClick={async () => { try { await cetakIDCard(peserta); } catch (e) { alert(e.message); } }} varian="primer" fullWidth>
                     🖨 CETAK ID CARD
                   </TombolPrimer>
                 </div>

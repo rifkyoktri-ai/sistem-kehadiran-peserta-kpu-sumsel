@@ -24,7 +24,7 @@ router.post('/peserta/:id/foto', authPetugas, (req, res) => {
 
     return res.json({ sukses: true, pesan: 'Foto berhasil disimpan.', data: { foto_path: fotoPath } });
   } catch (err) {
-    return res.status(500).json({ sukses: false, pesan: err.message, data: null });
+    return res.status(500).json({ sukses: false, pesan: 'Terjadi kesalahan internal server.', data: null });
   }
 });
 

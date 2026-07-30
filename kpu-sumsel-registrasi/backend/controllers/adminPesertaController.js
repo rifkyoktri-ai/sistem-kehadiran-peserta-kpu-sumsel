@@ -3,10 +3,10 @@
 // =============================================================================
 
 const { ambilKoneksiDB } = require('../database/db');
-const { STATUS_PESERTA, AKSI_LOG } = require('../constants');
+const { STATUS_PESERTA, STATUS_DIHAPUS, AKSI_LOG } = require('../constants');
 const { catatAuditLog } = require('../utils/auditLog');
 const { generateIdPeserta } = require('../utils/helpers');
-const { kirimEmailKonfirmasi } = require('../utils/email');
+const { sanitizeInput } = require('../utils/sanitize');
 
 exports.ambilDaftarPeserta = (req, res) => {
   try {
@@ -30,7 +30,7 @@ exports.ambilDaftarPeserta = (req, res) => {
       return res.status(400).json({ sukses: false, pesan: 'Status tidak valid.', data: null });
     }
 
-    let query = 'SELECT * FROM peserta WHERE acara_id = ?';
+    let query = 'SELECT * FROM peserta WHERE acara_id = ? AND (dihapus_pada IS NULL AND status != \'dihapus\')';
     const params = [targetAcaraId];
 
     if (status) {
@@ -38,9 +38,9 @@ exports.ambilDaftarPeserta = (req, res) => {
       params.push(status);
     }
     if (search) {
-      query += ' AND (nama_lengkap LIKE ? OR instansi LIKE ? OR email LIKE ? OR id LIKE ?)';
+      query += ' AND (nama_lengkap LIKE ? OR instansi LIKE ? OR id LIKE ?)';
       const keyword = `%${search}%`;
-      params.push(keyword, keyword, keyword, keyword);
+      params.push(keyword, keyword, keyword);
     }
 
     query += ' ORDER BY nomor_urut ASC';
@@ -62,7 +62,7 @@ exports.ambilDaftarPeserta = (req, res) => {
       },
     });
   } catch (err) {
-    return res.status(500).json({ sukses: false, pesan: err.message, data: null });
+    return res.status(500).json({ sukses: false, pesan: 'Terjadi kesalahan internal server.', data: null });
   }
 };
 
@@ -75,15 +75,16 @@ exports.editPeserta = (req, res) => {
     }
 
     const FIELD_BOLEH_EDIT = ['nama_lengkap', 'instansi', 'jabatan', 'no_hp', 'catatan'];
+    const bersih = sanitizeInput(req.body, FIELD_BOLEH_EDIT);
     const perubahan = {};
     const setClause = [];
     const params = [];
 
     for (const field of FIELD_BOLEH_EDIT) {
-      if (req.body[field] !== undefined && req.body[field] !== peserta[field]) {
-        perubahan[field] = { lama: peserta[field], baru: req.body[field] };
+      if (bersih[field] !== undefined && bersih[field] !== peserta[field]) {
+        perubahan[field] = { lama: peserta[field], baru: bersih[field] };
         setClause.push(`${field} = ?`);
-        params.push(req.body[field]);
+        params.push(bersih[field]);
       }
     }
 
@@ -101,7 +102,7 @@ exports.editPeserta = (req, res) => {
       data: db.prepare('SELECT * FROM peserta WHERE id = ?').get(req.params.id),
     });
   } catch (err) {
-    return res.status(500).json({ sukses: false, pesan: err.message, data: null });
+    return res.status(500).json({ sukses: false, pesan: 'Terjadi kesalahan internal server.', data: null });
   }
 };
 
@@ -122,13 +123,13 @@ exports.batalkanPeserta = (req, res) => {
 
     return res.json({ sukses: true, pesan: 'Pendaftaran peserta telah dibatalkan.', data: { id: req.params.id } });
   } catch (err) {
-    return res.status(500).json({ sukses: false, pesan: err.message, data: null });
+    return res.status(500).json({ sukses: false, pesan: 'Terjadi kesalahan internal server.', data: null });
   }
 };
 
 exports.gantiPeserta = (req, res) => {
-  const { id_peserta_lama, nama_baru, instansi_baru, jabatan_baru, email_baru, no_hp_baru } = req.body;
-  if (!id_peserta_lama || !nama_baru || !instansi_baru || !jabatan_baru || !email_baru || !no_hp_baru) {
+  const { id_peserta_lama, nama_baru, instansi_baru, jabatan_baru, no_hp_baru } = req.body;
+  if (!id_peserta_lama || !nama_baru || !instansi_baru || !jabatan_baru || !no_hp_baru) {
     return res.status(400).json({ sukses: false, pesan: 'Semua field wajib diisi.', data: null });
   }
 
@@ -139,14 +140,26 @@ exports.gantiPeserta = (req, res) => {
       return res.status(404).json({ sukses: false, pesan: 'Peserta lama tidak ditemukan.', data: null });
     }
 
-    if (db.prepare('SELECT id FROM peserta WHERE acara_id = ? AND email = ?').get(pesertaLama.acara_id, email_baru)) {
-      return res.status(409).json({ sukses: false, pesan: 'Email pengganti sudah terdaftar.', data: null });
-    }
+
 
     const acara = db.prepare('SELECT kode_acara FROM acara WHERE id = ?').get(pesertaLama.acara_id);
-    const maxUrut = db.prepare('SELECT MAX(nomor_urut) as max FROM peserta WHERE acara_id = ?').get(pesertaLama.acara_id);
-    const nomorUrut = (maxUrut.max || 0) + 1;
-    const idBaru = generateIdPeserta(nomorUrut, acara.kode_acara);
+    const tipe_peserta = pesertaLama.tipe_peserta || 'internal';
+    const maxRow = db.prepare(
+      'SELECT MAX(nomor_urut) as max FROM peserta WHERE acara_id = ? AND tipe_peserta = ?'
+    ).get(pesertaLama.acara_id, tipe_peserta);
+
+    let nextNum = 1;
+    if (maxRow && maxRow.max != null) {
+      const val = String(maxRow.max);
+      const match = val.match(/(\d+)$/);
+      if (match) {
+        nextNum = parseInt(match[1], 10) + 1;
+      }
+    }
+
+    const prefix = tipe_peserta === 'internal' ? 'KPU' : 'EKS';
+    const nomorUrutStr = `${prefix}-${String(nextNum).padStart(4, '0')}`;
+    const idBaru = generateIdPeserta(nextNum, acara.kode_acara, tipe_peserta);
     const waktuSekarang = new Date().toISOString();
 
     const prosesGanti = db.transaction(() => {
@@ -154,9 +167,9 @@ exports.gantiPeserta = (req, res) => {
         .run(STATUS_PESERTA.DIGANTIKAN, idBaru, id_peserta_lama);
 
       db.prepare(`
-        INSERT INTO peserta (id, acara_id, nomor_urut, nama_lengkap, instansi, jabatan, email, no_hp, id_digantikan, waktu_daftar)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(idBaru, pesertaLama.acara_id, nomorUrut, nama_baru, instansi_baru, jabatan_baru, email_baru, no_hp_baru, id_peserta_lama, waktuSekarang);
+        INSERT INTO peserta (id, acara_id, nomor_urut, tipe_peserta, nama_lengkap, instansi, jabatan, no_hp, email, id_digantikan, waktu_daftar)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(idBaru, pesertaLama.acara_id, nomorUrutStr, tipe_peserta, nama_baru, instansi_baru, jabatan_baru, no_hp_baru, pesertaLama.email || '', id_peserta_lama, waktuSekarang);
 
       catatAuditLog(db, req.aktor, AKSI_LOG.GANTI_PESERTA, id_peserta_lama, JSON.stringify({ digantikan_oleh: idBaru }), pesertaLama.acara_id);
       catatAuditLog(db, req.aktor, AKSI_LOG.GANTI_PESERTA, idBaru, JSON.stringify({ menggantikan: id_peserta_lama }), pesertaLama.acara_id);
@@ -172,7 +185,7 @@ exports.gantiPeserta = (req, res) => {
       },
     });
   } catch (err) {
-    return res.status(500).json({ sukses: false, pesan: err.message, data: null });
+    return res.status(500).json({ sukses: false, pesan: 'Terjadi kesalahan internal server.', data: null });
   }
 };
 
@@ -184,47 +197,22 @@ exports.hapusPeserta = (req, res) => {
       return res.status(404).json({ sukses: false, pesan: 'Peserta tidak ditemukan.', data: null });
     }
 
-    const prosesHapus = db.transaction(() => {
-      db.prepare('DELETE FROM audit_log WHERE id_peserta = ?').run(req.params.id);
-      db.prepare('DELETE FROM peserta WHERE id = ?').run(req.params.id);
-    });
+    const waktuSekarang = new Date().toISOString();
+    db.prepare(`UPDATE peserta SET status = ?, dihapus_pada = ?, dihapus_oleh = ? WHERE id = ?`)
+      .run(STATUS_DIHAPUS, waktuSekarang, req.aktor || 'admin', req.params.id);
 
-    prosesHapus();
+    catatAuditLog(db, req.aktor, 'HAPUS_PESERTA', req.params.id,
+      JSON.stringify({ nama: peserta.nama_lengkap, alasan: req.body.alasan || '' }),
+      peserta.acara_id
+    );
+
     return res.json({
       sukses: true,
-      pesan: `Peserta ${peserta.nama_lengkap} (${peserta.id}) telah dihapus permanen.`,
+      pesan: `Peserta ${peserta.nama_lengkap} (${peserta.id}) telah dihapus (soft delete).`,
       data: null,
     });
   } catch (err) {
-    return res.status(500).json({ sukses: false, pesan: err.message, data: null });
+    return res.status(500).json({ sukses: false, pesan: 'Terjadi kesalahan internal server.', data: null });
   }
 };
 
-exports.kirimUlangEmail = async (req, res) => {
-  try {
-    const db = ambilKoneksiDB();
-    const peserta = db.prepare(`
-      SELECT p.*, a.nama_acara, a.tanggal_acara, a.lokasi_acara, a.waktu_acara
-      FROM peserta p
-      JOIN acara a ON p.acara_id = a.id
-      WHERE p.id = ?
-    `).get(req.params.id);
-
-    if (!peserta) {
-      return res.status(404).json({ sukses: false, pesan: 'Peserta tidak ditemukan.', data: null });
-    }
-
-    if (!peserta.email) {
-      return res.status(400).json({ sukses: false, pesan: 'Peserta tidak memiliki email untuk dikirimi.', data: null });
-    }
-
-    const hasil = await kirimEmailKonfirmasi(peserta);
-
-    if (hasil.terkirim) {
-      return res.json({ sukses: true, pesan: 'Email berhasil dikirim ulang.', data: { email: peserta.email, id: peserta.id } });
-    }
-    return res.status(500).json({ sukses: false, pesan: 'Gagal mengirim email: ' + (hasil.alasan || 'unknown'), data: null });
-  } catch (err) {
-    return res.status(500).json({ sukses: false, pesan: err.message, data: null });
-  }
-};

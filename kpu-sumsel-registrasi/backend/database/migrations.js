@@ -4,7 +4,10 @@
 
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
+const bcrypt = require('bcrypt');
 const { ambilKoneksiDB } = require('./db');
+const logger = require('../utils/logger');
 
 /**
  * Membuat tabel 'acara' jika belum ada.
@@ -35,10 +38,10 @@ function backupDatabaseLama(lokasiDb) {
     if (fs.existsSync(lokasiDb)) {
       const lokasiBackup = lokasiDb + '.bak';
       fs.copyFileSync(lokasiDb, lokasiBackup);
-      console.log(`[MIGRASI] Backup database berhasil dibuat di: ${lokasiBackup}`);
+      logger.info(`[MIGRASI] Backup database berhasil dibuat di: ${lokasiBackup}`);
     }
   } catch (err) {
-    console.error('[MIGRASI] Gagal membuat backup database:', err.message);
+    logger.error('[MIGRASI] Gagal membuat backup database:', err.message);
   }
 }
 
@@ -49,7 +52,7 @@ function jalankanMigrasi() {
   const db = ambilKoneksiDB();
   const lokasiDb = db._lokasiDb;
 
-  console.log('[MIGRASI] Memeriksa dan memigrasi tabel database...');
+  logger.info('[MIGRASI] Memeriksa dan memigrasi tabel database...');
 
   // 1. Buat tabel acara terlebih dahulu
   buatTabelAcara(db);
@@ -69,7 +72,7 @@ function jalankanMigrasi() {
   }
 
   if (tabelPesertaAda && !sudahMultiAcara) {
-    console.log('[MIGRASI] Terdeteksi database versi lama. Memulai migrasi ke multi-acara...');
+    logger.info('[MIGRASI] Terdeteksi database versi lama. Memulai migrasi ke multi-acara...');
     backupDatabaseLama(lokasiDb);
 
     db.transaction(() => {
@@ -84,7 +87,7 @@ function jalankanMigrasi() {
       const kuotaMaksimal = parseInt(oldSettings.kuota_maksimal || '500', 10);
       const deadlineRegistrasi = oldSettings.deadline_registrasi || '';
       const statusRegistrasi = oldSettings.status_registrasi || 'buka';
-      const passwordPetugas = process.env.PASSWORD_PETUGAS || 'KPU2026checkin';
+      const passwordPetugas = process.env.PASSWORD_PETUGAS || crypto.randomBytes(16).toString('hex');
       const waktuDibuat = new Date().toISOString();
 
       // Insert default event
@@ -98,11 +101,12 @@ function jalankanMigrasi() {
         CREATE TABLE peserta_temp (
           id              TEXT PRIMARY KEY,
           acara_id        TEXT NOT NULL REFERENCES acara(id) ON DELETE CASCADE,
-          nomor_urut      INTEGER NOT NULL,
+          nomor_urut      TEXT NOT NULL,
           nama_lengkap    TEXT NOT NULL,
           instansi        TEXT NOT NULL,
           jabatan         TEXT NOT NULL,
-          email           TEXT NOT NULL,
+          nik             TEXT DEFAULT NULL,
+          email           TEXT DEFAULT NULL,
           no_hp           TEXT NOT NULL,
           catatan         TEXT DEFAULT '',
           status          TEXT DEFAULT 'terdaftar',
@@ -112,10 +116,11 @@ function jalankanMigrasi() {
           waktu_checkin   TEXT DEFAULT NULL,
           petugas_checkin TEXT DEFAULT NULL,
           adalah_walkin   INTEGER DEFAULT 0,
-          UNIQUE(acara_id, nomor_urut),
-          UNIQUE(acara_id, email)
+          UNIQUE(acara_id, nomor_urut)
         )
       `);
+
+
 
       // Salin data ke peserta_temp
       db.exec(`
@@ -163,10 +168,10 @@ function jalankanMigrasi() {
       db.prepare("INSERT INTO pengaturan_acara (kunci, nilai) VALUES ('id_acara_aktif', 'ACR-DEFAULT')").run();
     })();
 
-    console.log('[MIGRASI] Skema database berhasil dimigrasi ke versi multi-acara.');
+    logger.info('[MIGRASI] Skema database berhasil dimigrasi ke versi multi-acara.');
 
   } else if (!tabelPesertaAda) {
-    console.log('[MIGRASI] Database kosong. Memulai pembuatan skema baru...');
+    logger.info('[MIGRASI] Database kosong. Memulai pembuatan skema baru...');
 
     db.transaction(() => {
       // 1. Buat event default
@@ -175,7 +180,7 @@ function jalankanMigrasi() {
       const waktuAcara = '08:00';
       const lokasiAcara = 'Aula KPU Provinsi Sumatera Selatan';
       const kuotaMaksimal = 500;
-      const passwordPetugas = process.env.PASSWORD_PETUGAS || 'KPU2026checkin';
+      const passwordPetugas = process.env.PASSWORD_PETUGAS || crypto.randomBytes(16).toString('hex');
       const waktuDibuat = new Date().toISOString();
 
       db.prepare(`
@@ -188,11 +193,12 @@ function jalankanMigrasi() {
         CREATE TABLE peserta (
           id              TEXT PRIMARY KEY,
           acara_id        TEXT NOT NULL REFERENCES acara(id) ON DELETE CASCADE,
-          nomor_urut      INTEGER NOT NULL,
+          nomor_urut      TEXT NOT NULL,
           nama_lengkap    TEXT NOT NULL,
           instansi        TEXT NOT NULL,
           jabatan         TEXT NOT NULL,
-          email           TEXT NOT NULL,
+          nik             TEXT DEFAULT NULL,
+          email           TEXT DEFAULT NULL,
           no_hp           TEXT NOT NULL,
           catatan         TEXT DEFAULT '',
           status          TEXT DEFAULT 'terdaftar',
@@ -202,10 +208,10 @@ function jalankanMigrasi() {
           waktu_checkin   TEXT DEFAULT NULL,
           petugas_checkin TEXT DEFAULT NULL,
           adalah_walkin   INTEGER DEFAULT 0,
-          UNIQUE(acara_id, nomor_urut),
-          UNIQUE(acara_id, email)
+          UNIQUE(acara_id, nomor_urut)
         )
       `);
+
 
       // 3. Buat tabel audit_log baru
       db.exec(`
@@ -229,7 +235,7 @@ function jalankanMigrasi() {
       `);
       db.prepare("INSERT INTO pengaturan_acara (kunci, nilai) VALUES ('id_acara_aktif', 'ACR-DEFAULT')").run();
     })();
-    console.log('[MIGRASI] Skema baru multi-acara berhasil dibuat.');
+    logger.info('[MIGRASI] Skema baru multi-acara berhasil dibuat.');
   }
 
   // Migrasi: tambah kolom tipe_peserta jika belum ada
@@ -238,10 +244,10 @@ function jalankanMigrasi() {
     const sudahAdaTipe = colsPeserta.some(c => c.name === 'tipe_peserta');
     if (!sudahAdaTipe) {
       db.exec("ALTER TABLE peserta ADD COLUMN tipe_peserta TEXT NOT NULL DEFAULT 'internal'");
-      console.log('[MIGRASI] Kolom tipe_peserta berhasil ditambahkan ke tabel peserta.');
+      logger.info('[MIGRASI] Kolom tipe_peserta berhasil ditambahkan ke tabel peserta.');
     }
   } catch (err) {
-    console.error('[MIGRASI] Gagal menambah kolom tipe_peserta:', err.message);
+    logger.error('[MIGRASI] Gagal menambah kolom tipe_peserta:', err.message);
   }
 
   // Migrasi: tambah kolom foto_path jika belum ada
@@ -250,10 +256,10 @@ function jalankanMigrasi() {
     const sudahAdaFoto = colsPeserta2.some(c => c.name === 'foto_path');
     if (!sudahAdaFoto) {
       db.exec("ALTER TABLE peserta ADD COLUMN foto_path TEXT DEFAULT NULL");
-      console.log('[MIGRASI] Kolom foto_path berhasil ditambahkan ke tabel peserta.');
+      logger.info('[MIGRASI] Kolom foto_path berhasil ditambahkan ke tabel peserta.');
     }
   } catch (err) {
-    console.error('[MIGRASI] Gagal menambah kolom foto_path:', err.message);
+    logger.error('[MIGRASI] Gagal menambah kolom foto_path:', err.message);
   }
 
   // Migrasi: tambah kolom email_status & email_terakhir_dicoba jika belum ada
@@ -266,28 +272,81 @@ function jalankanMigrasi() {
     }
     if (!sudahAdaEmailStatus) {
       db.exec("ALTER TABLE peserta ADD COLUMN email_status TEXT NOT NULL DEFAULT 'tidak_ada_email'");
-      console.log('[MIGRASI] Kolom email_status berhasil ditambahkan ke tabel peserta.');
+      logger.info('[MIGRASI] Kolom email_status berhasil ditambahkan ke tabel peserta.');
     }
     if (!sudahAdaEmailDicoba) {
       db.exec("ALTER TABLE peserta ADD COLUMN email_terakhir_dicoba TEXT DEFAULT NULL");
-      console.log('[MIGRASI] Kolom email_terakhir_dicoba berhasil ditambahkan ke tabel peserta.');
+      logger.info('[MIGRASI] Kolom email_terakhir_dicoba berhasil ditambahkan ke tabel peserta.');
     }
   } catch (err) {
-    console.error('[MIGRASI] Gagal menambah kolom email:', err.message);
+    logger.error('[MIGRASI] Gagal menambah kolom email:', err.message);
+  }
+
+  // Migrasi: partial unique index untuk email (mencegah duplikat email dalam satu acara)
+  try {
+    const indexAda = db.prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'idx_peserta_email_unique'").get();
+    if (!indexAda) {
+      db.exec("CREATE UNIQUE INDEX idx_peserta_email_unique ON peserta(acara_id, email) WHERE email IS NOT NULL AND email != ''");
+      logger.info('[MIGRASI] Partial unique index idx_peserta_email_unique berhasil ditambahkan.');
+    }
+  } catch (err) {
+    logger.error('[MIGRASI] Gagal menambah partial unique index email:', err.message);
+  }
+
+  // Migrasi: tambah kolom nik jika belum ada
+  try {
+    const colsPesertaNik = db.prepare('PRAGMA table_info(peserta)').all();
+    const sudahAdaNik = colsPesertaNik.some(c => c.name === 'nik');
+    if (!sudahAdaNik) {
+      db.exec("ALTER TABLE peserta ADD COLUMN nik TEXT DEFAULT NULL");
+      logger.info('[MIGRASI] Kolom nik berhasil ditambahkan ke tabel peserta.');
+    }
+  } catch (err) {
+    logger.error('[MIGRASI] Gagal menambah kolom nik:', err.message);
+  }
+
+  // Migrasi: tambah kolom dihapus_pada & dihapus_oleh untuk soft delete
+  try {
+    const colsPesertaSD = db.prepare('PRAGMA table_info(peserta)').all();
+    if (!colsPesertaSD.some(c => c.name === 'dihapus_pada')) {
+      db.exec("ALTER TABLE peserta ADD COLUMN dihapus_pada TEXT DEFAULT NULL");
+      logger.info('[MIGRASI] Kolom dihapus_pada berhasil ditambahkan ke tabel peserta.');
+    }
+    if (!colsPesertaSD.some(c => c.name === 'dihapus_oleh')) {
+      db.exec("ALTER TABLE peserta ADD COLUMN dihapus_oleh TEXT DEFAULT NULL");
+      logger.info('[MIGRASI] Kolom dihapus_oleh berhasil ditambahkan ke tabel peserta.');
+    }
+  } catch (err) {
+    logger.error('[MIGRASI] Gagal menambah kolom soft delete:', err.message);
+  }
+
+  // Migrasi: hash password_petugas yang masih plaintext di tabel acara
+  try {
+    const acaraList = db.prepare('SELECT id, password_petugas FROM acara').all();
+    for (const ac of acaraList) {
+      if (ac.password_petugas && !ac.password_petugas.startsWith('$2b$')) {
+        const hashed = bcrypt.hashSync(ac.password_petugas, 12);
+        db.prepare('UPDATE acara SET password_petugas = ? WHERE id = ?').run(hashed, ac.id);
+        logger.info({ id: ac.id }, '[MIGRASI] Password petugas di-hash untuk acara');
+      }
+    }
+  } catch (err) {
+    logger.error('[MIGRASI] Gagal hash password petugas:', err.message);
   }
 
   // Aktifkan foreign keys & buat index
   db.exec('PRAGMA foreign_keys = ON');
-  db.exec('CREATE INDEX IF NOT EXISTS idx_peserta_email ON peserta(email)');
+
   db.exec('CREATE INDEX IF NOT EXISTS idx_peserta_status ON peserta(status)');
   db.exec('CREATE INDEX IF NOT EXISTS idx_peserta_nomor_urut ON peserta(nomor_urut)');
   db.exec('CREATE INDEX IF NOT EXISTS idx_peserta_acara ON peserta(acara_id)');
   db.exec('CREATE INDEX IF NOT EXISTS idx_peserta_tipe ON peserta(tipe_peserta)');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_peserta_nik ON peserta(nik)');
   db.exec('CREATE INDEX IF NOT EXISTS idx_log_peserta ON audit_log(id_peserta)');
   db.exec('CREATE INDEX IF NOT EXISTS idx_log_aksi ON audit_log(aksi)');
   db.exec('CREATE INDEX IF NOT EXISTS idx_log_acara ON audit_log(acara_id)');
 
-  console.log('[MIGRASI] Semua prasyarat, index, dan foreign key berhasil diperiksa.');
+  logger.info('[MIGRASI] Semua prasyarat, index, dan foreign key berhasil diperiksa.');
 }
 
 module.exports = { jalankanMigrasi };

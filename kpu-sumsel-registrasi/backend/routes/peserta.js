@@ -6,6 +6,7 @@ const express = require('express');
 const { body, validationResult } = require('express-validator');
 const { validate } = require('../middleware/validationResult');
 const { VALID_TIPE_PESERTA } = require('../constants');
+const { authPetugas } = require('../middleware/auth');
 const controller = require('../controllers/pesertaController');
 
 const router = express.Router();
@@ -35,11 +36,6 @@ const validasiDaftar = [
     .isString().withMessage('Jabatan harus berupa teks.')
     .isLength({ min: 2, max: 100 }).withMessage('Jabatan minimal 2 karakter, maksimal 100 karakter.'),
 
-  // Email wajib untuk eksternal, opsional untuk internal
-  body('email')
-    .optional({ nullable: true, checkFalsy: true })
-    .trim()
-    .isEmail().withMessage('Format email tidak valid.'),
 
   body('no_hp')
     .trim()
@@ -52,26 +48,20 @@ const validasiDaftar = [
     .optional()
     .isString().withMessage('Catatan harus berupa teks.')
     .isLength({ max: 500 }).withMessage('Catatan maksimal 500 karakter.'),
+
+  body('foto_base64')
+    .notEmpty().withMessage('Foto wajib diambil.')
+    .isString().withMessage('Foto harus berupa data URL.'),
 ];
 
-// Middleware validasi email wajib untuk eksternal
-const validasiEmailEksternal = (req, res, next) => {
-  if (req.body.tipe_peserta === 'eksternal' && !req.body.email) {
-    return res.status(400).json({
-      sukses: false,
-      pesan: 'Email wajib diisi untuk peserta eksternal.',
-      data: null,
-    });
-  }
-  next();
-};
+
 
 // Endpoint publik
 router.get('/acara/info', controller.ambilInfoAcara);
-router.post('/peserta/daftar', validasiDaftar, validate, validasiEmailEksternal, controller.daftarPeserta);
+router.post('/peserta/daftar', validasiDaftar, validate, controller.daftarPeserta);
 router.post('/peserta/cek-status', controller.cekStatusPeserta);
 router.get('/peserta/info/:id', controller.infoPesertaById);
-router.get('/peserta/by-nomor/:nomor_urut', controller.cariByNomorUrut);
-router.put('/peserta/:id/hadir', controller.tandaiHadirById);
+router.get('/peserta/by-nomor/:nomor_urut', authPetugas, controller.cariByNomorUrut);
+router.put('/peserta/:id/hadir', authPetugas, controller.tandaiHadirById);
 
 module.exports = router;

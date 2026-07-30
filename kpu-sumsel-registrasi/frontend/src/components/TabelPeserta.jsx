@@ -3,19 +3,7 @@ import StatusBadge from './StatusBadge';
 import ModalKonfirmasi from './ModalKonfirmasi';
 import ModalEditPeserta from './ModalEditPeserta';
 import ModalIDCard from './ModalIDCard';
-
-function authHeader(password, acaraId) {
-  const headers = { 'Content-Type': 'application/json' };
-  if (password && password.startsWith('eyJ')) {
-    headers['Authorization'] = 'Bearer ' + password;
-  } else {
-    headers['x-password'] = password;
-  }
-  if (acaraId) {
-    headers['x-acara-id'] = acaraId;
-  }
-  return headers;
-}
+import { getAuthHeader } from '../utils/api';
 
 export default function TabelPeserta({
   peserta = [],
@@ -38,6 +26,12 @@ export default function TabelPeserta({
   const [idCardTarget, setIdCardTarget] = useState(null);
   const fotoInputRef = useRef(null);
   const [fotoUploadingId, setFotoUploadingId] = useState(null);
+  const [feedback, setFeedback] = useState(null);
+
+  const showFeedback = (msg, err = false) => {
+    setFeedback({ msg, err });
+    setTimeout(() => setFeedback(null), 4000);
+  };
 
   const handleAksi = async (id, jenisAksi) => {
     setAksiLoading(id);
@@ -59,7 +53,7 @@ export default function TabelPeserta({
 
       const res = await fetch(url, {
         method,
-        headers: authHeader(passwordAdmin, acaraId),
+        headers: getAuthHeader(passwordAdmin, { 'x-acara-id': acaraId }),
         body
       });
 
@@ -67,10 +61,10 @@ export default function TabelPeserta({
         if (onRefresh) onRefresh();
       } else {
         const err = await res.json().catch(() => ({}));
-        alert(err.pesan || 'Gagal melakukan aksi.');
+        showFeedback(err.pesan || 'Gagal melakukan aksi.', true);
       }
     } catch (e) {
-      alert('Terjadi kesalahan jaringan.');
+      showFeedback('Terjadi kesalahan jaringan.', true);
     }
     setAksiLoading(null);
   };
@@ -81,7 +75,7 @@ export default function TabelPeserta({
     try {
       const res = await fetch(`/api/admin/peserta/${editTarget.id}`, {
         method: 'PUT',
-        headers: authHeader(passwordAdmin),
+        headers: getAuthHeader(passwordAdmin),
         body: JSON.stringify(perubahan),
       });
       const data = await res.json();
@@ -89,10 +83,10 @@ export default function TabelPeserta({
         setEditTarget(null);
         if (onRefresh) onRefresh();
       } else {
-        alert(data.pesan || 'Gagal mengedit data.');
+        showFeedback(data.pesan || 'Gagal mengedit data.', true);
       }
     } catch {
-      alert('Gagal terhubung ke server.');
+      showFeedback('Gagal terhubung ke server.', true);
     }
     setEditLoading(false);
   };
@@ -113,12 +107,12 @@ export default function TabelPeserta({
           body: JSON.stringify({ foto_base64 }),
         });
         const data = await res.json();
-        if (res.ok && onRefresh) onRefresh();
-        else alert(data.pesan || 'Gagal upload foto.');
+        if (res.ok) { showFeedback('Foto berhasil diupload!'); if (onRefresh) onRefresh(); }
+        else showFeedback(data.pesan || 'Gagal upload foto.', true);
       };
       reader.readAsDataURL(file);
     } catch {
-      alert('Gagal terhubung ke server.');
+      showFeedback('Gagal terhubung ke server.', true);
     }
     setFotoUploadingId(null);
   };
@@ -167,6 +161,12 @@ export default function TabelPeserta({
         }}
       />
 
+      {feedback && (
+        <div className={`mb-4 px-4 py-3 rounded-lg text-sm font-medium border ${feedback.err ? 'bg-[#FEE2E2] text-[#B91C1C] border-[#DC2626]' : 'bg-[#DCFCE7] text-[#15803D] border-[#16A34A]'}`}>
+          {feedback.msg}
+        </div>
+      )}
+
       {loading ? (
         <div className="p-12 flex flex-col items-center justify-center">
           <div className="h-10 w-10 border-4 border-[#EEF2F7] border-t-[#6B0F1A] rounded-full animate-spin mb-4"></div>
@@ -200,9 +200,7 @@ export default function TabelPeserta({
                     </td>
                     <td className="px-6 py-4 hidden md:table-cell">
                       <div className="flex flex-col gap-1">
-                        <a href={`mailto:${p.email}`} className="text-[#6B0F1A] hover:underline text-xs flex items-center gap-1">
-                          ✉ {p.email}
-                        </a>
+
                         <a href={`https://wa.me/${p.no_hp.replace(/^0/, '62')}`} target="_blank" rel="noreferrer" className="text-green-600 hover:underline text-xs flex items-center gap-1">
                           ✆ {p.no_hp}
                         </a>

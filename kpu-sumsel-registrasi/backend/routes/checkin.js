@@ -3,10 +3,10 @@
 // =============================================================================
 
 const express = require('express');
+const bcrypt = require('bcrypt');
 const { authPetugas } = require('../middleware/auth');
 const { body } = require('express-validator');
 const { validate } = require('../middleware/validationResult');
-const { VALID_INSTANSI, VALID_JABATAN } = require('../constants');
 
 // Validasi untuk tandai hadir (identifier tidak boleh kosong)
 const validasiTandaiHadir = [
@@ -25,12 +25,12 @@ const validasiWalkin = [
     .trim()
     .notEmpty().withMessage('Instansi wajib diisi.')
     .isString().withMessage('Instansi harus berupa teks.')
-    .isIn(VALID_INSTANSI).withMessage('Nilai instansi tidak valid.'),
+    .isLength({ min: 3, max: 150 }).withMessage('Instansi minimal 3 karakter.'),
   body('jabatan')
     .trim()
     .notEmpty().withMessage('Jabatan wajib diisi.')
     .isString().withMessage('Jabatan harus berupa teks.')
-    .isIn(VALID_JABATAN).withMessage('Nilai jabatan tidak valid.'),
+    .isLength({ min: 2, max: 100 }).withMessage('Jabatan minimal 2 karakter, maksimal 100 karakter.'),
   body('email')
     .trim()
     .notEmpty().withMessage('Email wajib diisi.')
@@ -58,7 +58,7 @@ router.get('/acara-aktif', (req, res) => {
     const daftarAcara = db.prepare("SELECT id, kode_acara, nama_acara, tanggal_acara FROM acara WHERE status_registrasi != 'arsip' ORDER BY waktu_dibuat DESC").all();
     return res.json({ sukses: true, data: daftarAcara });
   } catch (err) {
-    return res.status(500).json({ sukses: false, pesan: err.message, data: null });
+    return res.status(500).json({ sukses: false, pesan: 'Terjadi kesalahan internal server.', data: null });
   }
 });
 
@@ -87,14 +87,19 @@ router.post('/login', (req, res) => {
   try {
     const db = ambilKoneksiDB();
     const acara = db.prepare('SELECT password_petugas, nama_acara FROM acara WHERE id = ?').get(id_acara);
-    if (acara && password === acara.password_petugas) {
-      const token = buatToken({ aktor: 'petugas', level: 'petugas', acara_id: id_acara });
-      hasil.data = { token, level: 'petugas', level_akses: 'petugas', id_acara, nama_acara: acara.nama_acara };
-      hasil.pesan = 'Login berhasil.';
-      return res.json(hasil);
+    if (acara) {
+      const cocok = acara.password_petugas.startsWith('$2b$')
+        ? bcrypt.compareSync(password, acara.password_petugas)
+        : password === acara.password_petugas;
+      if (cocok) {
+        const token = buatToken({ aktor: 'petugas', level: 'petugas', acara_id: id_acara });
+        hasil.data = { token, level: 'petugas', level_akses: 'petugas', id_acara, nama_acara: acara.nama_acara };
+        hasil.pesan = 'Login berhasil.';
+        return res.json(hasil);
+      }
     }
   } catch (err) {
-    return res.status(500).json({ sukses: false, pesan: err.message, data: null });
+    return res.status(500).json({ sukses: false, pesan: 'Terjadi kesalahan internal server.', data: null });
   }
 
   return res.status(401).json({ sukses: false, pesan: 'Password salah untuk acara yang dipilih.', data: null });

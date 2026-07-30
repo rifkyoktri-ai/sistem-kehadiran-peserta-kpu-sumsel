@@ -4,6 +4,24 @@
 
 require('dotenv').config();
 
+// Validasi environment variables kritis sebelum server start
+const ENV_VARS = {
+  PASSWORD_PETUGAS: 'Password akses petugas check-in',
+  PASSWORD_ADMIN: 'Password akses panel admin',
+  JWT_SECRET: 'Secret key untuk token JWT (min 32 karakter)',
+};
+let validasiGagal = false;
+for (const [key, desc] of Object.entries(ENV_VARS)) {
+  if (!process.env[key]) {
+    console.error(`  ERROR: ${key} harus diatur di .env — ${desc}`);
+    validasiGagal = true;
+  }
+}
+if (validasiGagal) {
+  console.error('  Lihat file .env.example untuk contoh konfigurasi.');
+  process.exit(1);
+}
+
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -13,6 +31,7 @@ const path = require('path');
 const { inisialisasiDB, ambilKoneksiDB, tutupKoneksiDB } = require('./database/db');
 const { jalankanMigrasi } = require('./database/migrations');
 const { inisialisasiEmail } = require('./utils/email');
+const logger = require('./utils/logger');
 
 // Import semua router
 const routerPeserta = require('./routes/peserta');
@@ -25,11 +44,24 @@ const PORT = process.env.PORT || 3001;
 
 // ── Flag kesiapan database ──────────────────────────────────────────────────
 let dbReady = false;
+logger.info('Server starting...');
 
 // ── Security Headers ────────────────────────────────────────────────────────
 app.use(helmet({
-  contentSecurityPolicy: false, // Nonaktifkan CSP agar frontend SPA bisa berjalan
   crossOriginEmbedderPolicy: false,
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      imgSrc: ["'self'", "data:", "blob:"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      connectSrc: ["'self'", "ws://localhost:*", "http://localhost:*"],
+      frameSrc: ["'none'"],
+      objectSrc: ["'none'"],
+      upgradeInsecureRequests: [],
+    },
+  },
 }));
 
 // ── CORS Terbatas ───────────────────────────────────────────────────────────
@@ -50,7 +82,7 @@ app.use(cors({
 
 app.use(express.json({ limit: '5mb' }));
 
-// ── Rate Limiting untuk endpoint login ──────────────────────────────────────
+// ── Rate Limiting ───────────────────────────────────────────────────────────
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 menit
   max: 10,                   // Maks 10 percobaan per IP
@@ -63,9 +95,23 @@ const loginLimiter = rateLimit({
   },
 });
 
-// Terapkan rate limiter pada endpoint login
+const daftarLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 menit
+  max: 30,              // Maks 30 registrasi per IP per menit
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    sukses: false,
+    pesan: 'Terlalu banyak permintaan pendaftaran. Silakan coba lagi dalam 1 menit.',
+    data: null,
+  },
+});
+
+// Terapkan rate limiter pada endpoint login dan registrasi
 app.use('/api/admin/login', loginLimiter);
 app.use('/api/checkin/login', loginLimiter);
+app.use('/api/peserta/daftar', daftarLimiter);
+app.use('/api/v1/peserta/daftar', daftarLimiter);
 
 // ── Middleware DB-Ready ─────────────────────────────────────────────────────
 app.use((req, res, next) => {
@@ -82,17 +128,11 @@ app.use((req, res, next) => {
 // Serve file statis (foto upload)
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Mount routes (dengan versioning)
+// Mount routes
 app.use('/api', routerPeserta);
 app.use('/api/checkin', routerCheckin);
 app.use('/api/admin', routerAdmin);
 app.use('/api', routerUpload);
-
-// API versioning untuk forward compatibility
-app.use('/api/v1', routerPeserta);
-app.use('/api/v1/checkin', routerCheckin);
-app.use('/api/v1/admin', routerAdmin);
-app.use('/api/v1', routerUpload);
 
 // ── Health check (informatif) ───────────────────────────────────────────────
 app.get('/api/ping', (req, res) => {
@@ -108,14 +148,18 @@ app.get('/api/ping', (req, res) => {
 
 // Handler error global – menangkap semua error yang tidak tertangkap di route manapun
 app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
-  // Log error detail hanya pada environment development untuk debugging
-  if (process.env.NODE_ENV === 'development') {
-    console.error('[ERROR] ', err);
-  }
-  // Respons JSON konsisten untuk client
-  return res.status(500).json({
+  const refId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  logger.error({ err, refId }, 'Unhandled error');
+  console.error('=== GLOBAL ERROR HANDLER ===');
+  console.error('refId:', refId);
+  console.error('message:', err.message);
+  console.error('stack:', err.stack);
+  console.error('============================');
+  // Jangan kirim detail error internal ke client
+  return res.status(err.status || 500).json({
     sukses: false,
     pesan: 'Terjadi kesalahan pada server. Silakan hubungi tim teknis.',
+    ref_id: refId,
   });
 });
 
@@ -130,29 +174,37 @@ async function start() {
     dbReady = true;
 
     server = app.listen(PORT, () => {
-      console.log('='.repeat(60));
-      console.log('  Server KPU Sumsel berjalan di port', PORT);
-      console.log('  Health check: http://localhost:' + PORT + '/api/ping');
-      console.log('='.repeat(60));
+      logger.info({ port: PORT, healthCheck: `http://localhost:${PORT}/api/ping` }, 'Server KPU Sumsel started');
     });
   } catch (error) {
-    console.error('Gagal menjalankan server:', error);
+    logger.error({ err: error }, 'Failed to start server');
     process.exit(1);
   }
 }
 
 start();
 
+// Global unhandled rejection handler
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('=== UNHANDLED REJECTION ===');
+  console.error('reason:', reason);
+  console.error('stack:', reason?.stack);
+  console.error('============================');
+});
+
 // Graceful shutdown
-process.on('SIGINT', () => {
-  console.log('\n[SERVER] Menerima sinyal berhenti. Menutup koneksi...');
+const gracefulShutdown = (sinyal) => {
+  logger.info({ signal: sinyal }, 'Received shutdown signal, closing connections...');
   tutupKoneksiDB();
   if (server) {
     server.close(() => {
-      console.log('[SERVER] Server berhasil dihentikan.');
+      logger.info('Server stopped successfully');
       process.exit(0);
     });
   } else {
     process.exit(0);
   }
-});
+};
+
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));

@@ -21,7 +21,7 @@ export default function Registrasi() {
     nama_lengkap: '',
     instansi: '',
     jabatan: '',
-    email: '',
+    jabatan: '',
     no_hp: '',
     catatan: '',
   });
@@ -47,7 +47,7 @@ export default function Registrasi() {
 
   const handleTipeChange = (tipe) => {
     setTipePeserta(tipe);
-    setForm({ nama_lengkap: '', instansi: '', jabatan: '', email: '', no_hp: '', catatan: '' });
+    setForm({ nama_lengkap: '', instansi: '', jabatan: '', no_hp: '', catatan: '' });
     setInstansiLainnya('');
     setErrorMsg('');
     setDuplicateId('');
@@ -67,11 +67,7 @@ export default function Registrasi() {
     if (form.instansi === 'Lainnya' && !instansiLainnya.trim())
       return 'Mohon isi nama instansi Anda pada kolom di bawah dropdown.';
     if (!form.jabatan) return 'Jabatan wajib diisi.';
-    if (tipePeserta === 'eksternal') {
-      if (!form.email) return 'Email wajib diisi untuk peserta eksternal.';
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(form.email)) return 'Format alamat email tidak valid.';
-    }
+
     if (!form.no_hp) return 'Nomor HP wajib diisi.';
     const hpClean = form.no_hp.replace(/\D/g, '');
     if (hpClean.length < 10) return 'Nomor HP minimal 10 digit angka.';
@@ -106,8 +102,9 @@ export default function Registrasi() {
         setModalDuplikatOpen(true);
       } else if (res.status === 409 && resJson.data?.id_terdaftar) {
         setDuplicateId(resJson.data.id_terdaftar);
-        setErrorMsg('Email / nomor HP ini sudah terdaftar untuk acara ini.');
+        setErrorMsg('Nomor HP ini sudah terdaftar untuk acara ini.');
       } else if (!resJson.sukses) {
+        if (resJson.detail) console.error('[REG ERROR]', resJson.detail);
         setErrorMsg(resJson.pesan || 'Gagal mendaftar. Silakan coba lagi.');
       } else {
         navigate(`/konfirmasi/${resJson.data.id}`);
@@ -139,6 +136,13 @@ export default function Registrasi() {
     : 'Tanggal belum ditentukan';
   const waktu     = acara?.waktu_acara   || 'Waktu belum ditentukan';
   const lokasi    = acara?.lokasi_acara  || 'Lokasi belum ditentukan';
+  const formatDeadline = (dtStr) => {
+    if (!dtStr) return 'Sesuai Kuota';
+    const d = new Date(dtStr);
+    if (isNaN(d.getTime())) return dtStr;
+    return d.toLocaleDateString('id-ID', {day:'2-digit', month:'long', year:'numeric', hour:'2-digit', minute:'2-digit'}) + ' WIB';
+  };
+  const deadline  = formatDeadline(acara?.deadline_registrasi);
 
   const kelasInput = `
     w-full px-4 py-3 rounded-lg text-sm font-body
@@ -200,11 +204,12 @@ export default function Registrasi() {
             {/* Garis pembatas bawah hero */}
             <div className="w-full my-6" style={{ height: '2px', background: 'linear-gradient(90deg,transparent,#C8930A,#FFD700,#C8930A,transparent)' }} />
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
               {[
                 ['📅', 'Tanggal', tanggal],
                 ['🕙', 'Waktu', waktu],
                 ['📍', 'Lokasi', lokasi],
+                ['⏳', 'Batas Daftar', deadline],
               ].map(([ikon, label, nilai]) => (
                 <div key={label}>
                   <p className="uppercase mb-1 font-bold" style={{ color: '#C8930A', fontSize: '11px', letterSpacing: '1.5px' }}>
@@ -362,39 +367,20 @@ export default function Registrasi() {
                     />
                   </div>
 
-                  {/* Email + No HP */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative z-10">
-                    <div>
-                      <label className="kpu-form-label">
-                        Email {tipePeserta === 'eksternal' ? '*' : '(Opsional)'}
-                      </label>
-                      <input
-                        type="email"
-                        name="email"
-                        value={form.email}
-                        onChange={handleInputChange}
-                        className="input-kpu"
-                        placeholder="Contoh: nama@domain.com"
-                        required={tipePeserta === 'eksternal'}
-                      />
-                      {tipePeserta === 'internal' && (
-                        <p className="text-xs text-[#5A6A8A] mt-1">* Opsional untuk peserta internal KPU</p>
-                      )}
-                    </div>
-                    <div>
-                      <label className="kpu-form-label">
-                        Nomor HP / WhatsApp *
-                      </label>
-                      <input
-                        type="text"
-                        name="no_hp"
-                        value={form.no_hp}
-                        onChange={handleInputChange}
-                        className="input-kpu"
-                        placeholder="Minimal 10 digit angka"
-                        required
-                      />
-                    </div>
+                  {/* No HP */}
+                  <div className="relative z-10">
+                    <label className="kpu-form-label">
+                      Nomor HP / WhatsApp *
+                    </label>
+                    <input
+                      type="text"
+                      name="no_hp"
+                      value={form.no_hp}
+                      onChange={handleInputChange}
+                      className="input-kpu"
+                      placeholder="Minimal 10 digit angka"
+                      required
+                    />
                   </div>
 
                   {/* Catatan */}
@@ -414,7 +400,7 @@ export default function Registrasi() {
 
                   {/* Upload Foto */}
                   <KameraCapture
-                    label="Upload Foto Wajah"
+                    label="Foto Selfie Wajah"
                     required={true}
                     error={errorMsg}
                     onChange={(base64) => setFotoBase64(base64)}

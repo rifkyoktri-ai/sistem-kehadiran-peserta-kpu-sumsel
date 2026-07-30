@@ -2,6 +2,7 @@
 // MIDDLEWARE AUTENTIKASI — Dual auth: JWT (Bearer) + Password header (legacy)
 // =============================================================================
 
+const bcrypt = require('bcrypt');
 const { ambilKoneksiDB } = require('../database/db');
 const { PASSWORD_ADMIN } = require('../constants');
 const { verifikasiToken } = require('../utils/jwt');
@@ -44,8 +45,13 @@ function cobaPasswordPetugas(req) {
   try {
     const db = ambilKoneksiDB();
     const acara = db.prepare('SELECT password_petugas FROM acara WHERE id = ?').get(acaraIdDiterima);
-    if (acara && passwordDiterima === acara.password_petugas) {
-      return { aktor: 'petugas', acaraId: acaraIdDiterima };
+    if (acara) {
+      const cocok = acara.password_petugas.startsWith('$2b$')
+        ? bcrypt.compareSync(passwordDiterima, acara.password_petugas)
+        : passwordDiterima === acara.password_petugas;
+      if (cocok) {
+        return { aktor: 'petugas', acaraId: acaraIdDiterima };
+      }
     }
   } catch { /* lanjut ke tolak */ }
   return null;

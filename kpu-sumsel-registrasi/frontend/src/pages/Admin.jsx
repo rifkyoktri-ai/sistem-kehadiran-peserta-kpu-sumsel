@@ -4,7 +4,9 @@ import TabelPeserta from '../components/TabelPeserta';
 import HeaderUtama from '../components/HeaderUtama';
 import TombolPrimer from '../components/TombolPrimer';
 import StatusBadge from '../components/StatusBadge';
+import ModalKonfirmasi from '../components/ModalKonfirmasi';
 import { useAuth } from '../context/AuthContext';
+import { getAuthHeader } from '../utils/api';
 
 function LoginForm({ onLogin }) {
   const [username, setUsername] = useState('');
@@ -102,8 +104,10 @@ function Dashboard({ password, onLogout }) {
   const [loadingPeserta, setLoadingPeserta] = useState(false);
   const [auditLog, setAuditLog] = useState([]);
   const [loadingAudit, setLoadingAudit] = useState(false);
-  const [feedback, setFeedback] = useState('');
+  const [feedback, setFeedback] = useState(null); // { type: 'success'|'error', pesan: '' }
+  const [feedbackProgress, setFeedbackProgress] = useState(100);
   const [tanggalHariIni, setTanggalHariIni] = useState('');
+  const [resetConfirm, setResetConfirm] = useState(false);
 
   // Sesi Multi-Acara
   const [daftarAcara, setDaftarAcara] = useState([]);
@@ -147,13 +151,9 @@ function Dashboard({ password, onLogout }) {
     }
   };
 
-  const authHeaders = () => password.startsWith('eyJ')
-    ? { 'Authorization': 'Bearer ' + password }
-    : { 'x-password': password };
-
   const muatRekap = () => {
     if (!idAcaraSelected) return;
-    fetch(`/api/admin/rekap?id_acara=${idAcaraSelected}`, { headers: authHeaders() })
+    fetch(`/api/admin/rekap?id_acara=${idAcaraSelected}`, { headers: getAuthHeader(password) })
       .then((r) => r.ok ? r.json() : Promise.reject())
       .then((d) => setRekap(d.data || d))
       .catch(() => setError('Gagal memuat rekap'))
@@ -181,7 +181,7 @@ function Dashboard({ password, onLogout }) {
   const handleExportCSV = async () => {
     if (!idAcaraSelected) return;
     try {
-      const resp = await fetch(`/api/admin/export-csv?id_acara=${idAcaraSelected}`, { headers: authHeaders() });
+      const resp = await fetch(`/api/admin/export-csv?id_acara=${idAcaraSelected}`, { headers: getAuthHeader(password) });
       if (!resp.ok) throw new Error('Gagal export');
       const blob = await resp.blob();
       const url = URL.createObjectURL(blob);
@@ -192,21 +192,33 @@ function Dashboard({ password, onLogout }) {
       a.download = filename;
       a.click();
       URL.revokeObjectURL(url);
-      setFeedback('✅ CSV berhasil di-download.');
+      tampilFeedback('success', 'CSV berhasil di-download.');
     } catch {
-      setFeedback('❌ Gagal export CSV.');
+      tampilFeedback('error', 'Gagal export CSV.');
     }
-    setTimeout(() => setFeedback(''), 4000);
   };
 
   const handleBackup = async () => {
     try {
       const data = await apiFetch('/api/admin/backup');
-      setFeedback('✅ Backup berhasil: ' + data.data.file);
+      tampilFeedback('success', 'Backup berhasil: ' + data.data.file);
     } catch (err) {
-      setFeedback('❌ Gagal backup: ' + (err.message || ''));
+      tampilFeedback('error', 'Gagal backup: ' + (err.message || ''));
     }
-    setTimeout(() => setFeedback(''), 4000);
+  };
+
+  const tampilFeedback = (type, pesan) => {
+    setFeedback({ type, pesan });
+    setFeedbackProgress(100);
+    let prog = 100;
+    const interval = setInterval(() => {
+      prog -= 2;
+      setFeedbackProgress(prog);
+      if (prog <= 0) {
+        clearInterval(interval);
+        setFeedback(null);
+      }
+    }, 80); // 80ms × 50 steps = ~4 detik
   };
 
   const muatPeserta = async (hal = 1, cari = '') => {
@@ -235,6 +247,17 @@ function Dashboard({ password, onLogout }) {
       setFeedback('❌ Gagal memuat audit log.');
     }
     setLoadingAudit(false);
+  };
+
+  const handleResetAuditLog = async () => {
+    try {
+      const data = await apiFetch('/api/admin/audit-log', { method: 'DELETE' });
+      tampilFeedback('success', data.pesan || 'Audit log berhasil direset.');
+      muatAuditLog();
+    } catch (err) {
+      tampilFeedback('error', err.message || 'Gagal mereset audit log.');
+    }
+    setResetConfirm(false);
   };
 
   useEffect(() => {
@@ -335,9 +358,26 @@ function Dashboard({ password, onLogout }) {
         {/* KONTEN UTAMA */}
         <main className="flex-1 overflow-y-auto">
           {feedback && (
-            <div className="fixed top-24 right-8 z-50 animate-[slideUp_250ms_ease-out]">
-              <div className="bg-[#4A0A10] text-white px-6 py-3 rounded-lg shadow-lg font-medium text-sm border-l-4 border-[#C8972A]">
-                {feedback}
+            <div className="fixed top-6 right-6 z-50 min-w-[300px] max-w-sm shadow-2xl rounded-xl overflow-hidden" style={{ animation: 'slideInRight 0.3s ease-out' }}>
+              <div className={`flex items-start gap-3 px-5 py-4 ${
+                feedback.type === 'success'
+                  ? 'bg-white border-l-4 border-[#16A34A]'
+                  : 'bg-white border-l-4 border-[#DC2626]'
+              }`}>
+                <span className="text-xl mt-0.5">{feedback.type === 'success' ? '✅' : '❌'}</span>
+                <div className="flex-1">
+                  <p className={`font-semibold text-sm ${ feedback.type === 'success' ? 'text-[#16A34A]' : 'text-[#DC2626]' }`}>
+                    {feedback.type === 'success' ? 'Berhasil' : 'Gagal'}
+                  </p>
+                  <p className="text-[#3A0708] text-sm mt-0.5">{feedback.pesan}</p>
+                </div>
+                <button onClick={() => setFeedback(null)} className="text-gray-400 hover:text-gray-700 text-lg leading-none">×</button>
+              </div>
+              <div className="h-1 bg-gray-100">
+                <div
+                  className={`h-full transition-none ${ feedback.type === 'success' ? 'bg-[#16A34A]' : 'bg-[#DC2626]' }`}
+                  style={{ width: feedbackProgress + '%', transition: 'width 0.08s linear' }}
+                />
               </div>
             </div>
           )}
@@ -360,7 +400,7 @@ function Dashboard({ password, onLogout }) {
                     <div className="kpu-stat-card" style={{ position: 'relative' }}>
                       <div className="kpu-glow"></div>
                       <i className="ti ti-users" style={{ fontSize: '28px', color: 'rgba(255,255,255,0.15)', position: 'absolute', bottom: '12px', right: '14px', zIndex: 10 }}></i>
-                      <div className="kpu-stat-num">{rekap.total_seluruh || 0}</div>
+                      <div className="kpu-stat-num">{rekap.total_terdaftar || 0}</div>
                       <div className="kpu-stat-label">Total Terdaftar</div>
                       <div className="w-full h-1 bg-white/20 mt-4 rounded-full overflow-hidden relative z-10">
                         <div className="h-full bg-white/40 w-1/2"></div>
@@ -373,7 +413,7 @@ function Dashboard({ password, onLogout }) {
                       <div className="kpu-stat-num">{rekap.total_hadir || 0}</div>
                       <div className="kpu-stat-label">Hadir (Check-in)</div>
                       <div className="w-full h-1 bg-white/20 mt-4 rounded-full overflow-hidden relative z-10">
-                        <div className="h-full bg-white" style={{ width: `${rekap.total_seluruh ? (rekap.total_hadir / rekap.total_seluruh) * 100 : 0}%` }}></div>
+                        <div className="h-full bg-white" style={{ width: `${rekap.total_aktif ? (rekap.total_hadir / rekap.total_aktif) * 100 : 0}%` }}></div>
                       </div>
                     </div>
 
@@ -388,8 +428,8 @@ function Dashboard({ password, onLogout }) {
                       <div className="kpu-glow"></div>
                       <i className="ti ti-chart-bar" style={{ fontSize: '28px', color: 'rgba(255,255,255,0.15)', position: 'absolute', bottom: '12px', right: '14px', zIndex: 10 }}></i>
                       <div className="kpu-stat-num">
-                        {rekap.total_seluruh && rekap.total_seluruh > 0 
-                          ? Math.round((rekap.total_hadir / (rekap.total_seluruh - (rekap.total_membatalkan || 0))) * 100) 
+                        {rekap.total_aktif && rekap.total_aktif > 0 
+                          ? Math.round((rekap.total_hadir / rekap.total_aktif) * 100) 
                           : 0}%
                       </div>
                       <div className="kpu-stat-label">Tingkat Kehadiran Aktif</div>
@@ -454,7 +494,7 @@ function Dashboard({ password, onLogout }) {
                   total={pesertaTotal}
                   onPageChange={(hal) => muatPeserta(hal, pesertaSearch)}
                   passwordAdmin={password} // Pass password for actions inside TabelPeserta if it edits data
-                  onRefresh={() => muatPeserta(pesertaPage, pesertaSearch)}
+                  onRefresh={() => { muatPeserta(pesertaPage, pesertaSearch); muatRekap(); }}
                   acaraId={idAcaraSelected} // Pass selected acara ID for hadir action
                 />
               </div>
@@ -472,7 +512,7 @@ function Dashboard({ password, onLogout }) {
                   apiFetch={apiFetch} 
                   onRefresh={muatDaftarAcara} 
                   currentActiveId={idAcaraSelected} 
-                  setFeedback={setFeedback} 
+                  setFeedback={(msg) => { const isErr = msg.startsWith('❌'); tampilFeedback(isErr ? 'error' : 'success', msg.replace(/^[✅❌]\s*/, '')); }} 
                 />
               </div>
             )}
@@ -487,8 +527,8 @@ function Dashboard({ password, onLogout }) {
                 <PengaturanForm 
                   password={password} 
                   idAcara={idAcaraSelected}
-                  onSuccess={() => setFeedback('✅ Pengaturan berhasil disimpan!')} 
-                  onError={() => setFeedback('❌ Gagal menyimpan pengaturan.')} 
+                  onSuccess={() => tampilFeedback('success', 'Pengaturan berhasil disimpan!')} 
+                  onError={() => tampilFeedback('error', 'Gagal menyimpan pengaturan.')} 
                 />
               </div>
             )}
@@ -499,6 +539,12 @@ function Dashboard({ password, onLogout }) {
                 <div className="flex items-center gap-3 mb-6 relative">
                   <div className="absolute left-[-16px] top-0 bottom-0 w-1 bg-[#C8972A]"></div>
                   <h3 className="font-display font-bold text-2xl text-[#3A0708]">Riwayat Aktivitas Sistem</h3>
+                  <button
+                    onClick={() => setResetConfirm(true)}
+                    className="ml-auto h-9 px-4 rounded-lg bg-[#DC2626] hover:bg-[#B91C1C] text-white text-xs font-bold transition flex items-center gap-1.5"
+                  >
+                    Reset Seluruh Log
+                  </button>
                 </div>
 
                 <div className="bg-white rounded-2xl shadow-card border border-[#E2E8F0] overflow-hidden">
@@ -553,6 +599,17 @@ function Dashboard({ password, onLogout }) {
                 </div>
               </div>
             )}
+
+            <ModalKonfirmasi
+              terbuka={resetConfirm}
+              judul="Reset Seluruh Audit Log"
+              pesan="Semua riwayat aktivitas sistem akan dihapus permanen. Tindakan ini tidak bisa dibatalkan."
+              tombolKonfirmasi="Ya, Reset Semua"
+              varian="merah"
+              onKonfirmasi={handleResetAuditLog}
+              onBatal={() => setResetConfirm(false)}
+            />
+
           </div>
         </main>
       </div>
@@ -565,16 +622,20 @@ function PengaturanForm({ password, idAcara, onSuccess, onError }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  const authHeaders = () => password.startsWith('eyJ')
-    ? { 'Authorization': 'Bearer ' + password }
-    : { 'x-password': password };
-
   useEffect(() => {
     if (!idAcara) return;
     setLoading(true);
-    fetch(`/api/admin/pengaturan?id_acara=${idAcara}`, { headers: authHeaders() })
+    fetch(`/api/admin/pengaturan?id_acara=${idAcara}`, { headers: getAuthHeader(password) })
       .then((r) => r.ok ? r.json() : Promise.reject())
-      .then((d) => setForm(d.data || {}))
+      .then((d) => {
+        const data = d.data || {};
+        if (data.deadline_registrasi) {
+          const parts = data.deadline_registrasi.split('T');
+          data.deadline_tanggal = parts[0] || '';
+          data.deadline_waktu = parts[1] || '';
+        }
+        setForm(data);
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [password, idAcara]);
@@ -585,10 +646,15 @@ function PengaturanForm({ password, idAcara, onSuccess, onError }) {
     e.preventDefault();
     setSaving(true);
     try {
+      const bodyToSave = { ...form, id_acara: idAcara };
+      bodyToSave.deadline_registrasi = `${form.deadline_tanggal}T${form.deadline_waktu}`;
+      delete bodyToSave.deadline_tanggal;
+      delete bodyToSave.deadline_waktu;
+
       const resp = await fetch('/api/admin/pengaturan', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', ...authHeaders() },
-        body: JSON.stringify({ ...form, id_acara: idAcara }),
+        headers: getAuthHeader(password),
+        body: JSON.stringify(bodyToSave),
       });
       if (!resp.ok) throw new Error();
       if (onSuccess) onSuccess();
@@ -610,9 +676,10 @@ function PengaturanForm({ password, idAcara, onSuccess, onError }) {
           <Field label="Waktu Acara" name="waktu_acara" value={form.waktu_acara || ''} onChange={handleChange} type="time" />
         </div>
         <Field label="Lokasi Acara" name="lokasi_acara" value={form.lokasi_acara || ''} onChange={handleChange} />
+        <Field label="Kuota Maksimal" name="kuota_maksimal" value={form.kuota_maksimal || '500'} onChange={handleChange} type="number" required={true} />
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <Field label="Kuota Maksimal" name="kuota_maksimal" value={form.kuota_maksimal || '500'} onChange={handleChange} type="number" />
-          <Field label="Deadline Registrasi" name="deadline_registrasi" value={form.deadline_registrasi || ''} onChange={handleChange} type="date" />
+          <Field label="Tanggal Deadline" name="deadline_tanggal" value={form.deadline_tanggal || ''} onChange={handleChange} type="date" required={true} />
+          <Field label="Jam Deadline" name="deadline_waktu" value={form.deadline_waktu || ''} onChange={handleChange} type="time" required={true} />
         </div>
         <Field label="Password Petugas Lapangan" name="password_petugas" value={form.password_petugas || ''} onChange={handleChange} />
         
@@ -651,13 +718,10 @@ function KelolaAcaraPanel({ password, apiFetch, onRefresh, currentActiveId, setF
   const [waktuAcara, setWaktuAcara] = useState('08:00');
   const [lokasiAcara, setLokasiAcara] = useState('');
   const [kuotaMaksimal, setKuotaMaksimal] = useState(500);
-  const [deadlineRegistrasi, setDeadlineRegistrasi] = useState('');
+  const [deadlineTanggal, setDeadlineTanggal] = useState('');
+  const [deadlineWaktu, setDeadlineWaktu] = useState('');
   const [passwordPetugas, setPasswordPetugas] = useState('');
   const [saving, setSaving] = useState(false);
-
-  const authHeaders = () => password.startsWith('eyJ')
-    ? { 'Authorization': 'Bearer ' + password }
-    : { 'x-password': password };
 
   const muatAcara = async () => {
     setLoading(true);
@@ -680,7 +744,7 @@ function KelolaAcaraPanel({ password, apiFetch, onRefresh, currentActiveId, setF
     try {
       const resp = await fetch('/api/admin/acara', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        headers: getAuthHeader(password),
         body: JSON.stringify({
           kode_acara: kodeAcara,
           nama_acara: namaAcara,
@@ -688,7 +752,7 @@ function KelolaAcaraPanel({ password, apiFetch, onRefresh, currentActiveId, setF
           waktu_acara: waktuAcara,
           lokasi_acara: lokasiAcara,
           kuota_maksimal: kuotaMaksimal,
-          deadline_registrasi: deadlineRegistrasi,
+          deadline_registrasi: `${deadlineTanggal}T${deadlineWaktu}`,
           password_petugas: passwordPetugas
         })
       });
@@ -703,7 +767,8 @@ function KelolaAcaraPanel({ password, apiFetch, onRefresh, currentActiveId, setF
         setWaktuAcara('08:00');
         setLokasiAcara('');
         setKuotaMaksimal(500);
-        setDeadlineRegistrasi('');
+        setDeadlineTanggal('');
+        setDeadlineWaktu('');
         setPasswordPetugas('');
         muatAcara();
         if (onRefresh) onRefresh();
@@ -718,7 +783,7 @@ function KelolaAcaraPanel({ password, apiFetch, onRefresh, currentActiveId, setF
     try {
       const resp = await fetch('/api/admin/acara/aktif', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        headers: getAuthHeader(password),
         body: JSON.stringify({ id_acara: id })
       });
       if (resp.ok) {
@@ -828,18 +893,25 @@ function KelolaAcaraPanel({ password, apiFetch, onRefresh, currentActiveId, setF
               className="w-full h-10 border border-[#E2E8F0] rounded-lg px-3 text-sm focus:outline-none focus:border-[#D8241C]"
             />
           </div>
+          <div>
+            <label className="block text-xs font-semibold text-[#1F1A17] mb-1">Kuota Max</label>
+            <input 
+              type="number" value={kuotaMaksimal} onChange={(e) => setKuotaMaksimal(parseInt(e.target.value))} required
+              className="w-full h-10 border border-[#E2E8F0] rounded-lg px-3 text-sm focus:outline-none focus:border-[#D8241C]"
+            />
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-semibold text-[#1F1A17] mb-1">Kuota Max</label>
+              <label className="block text-xs font-semibold text-[#1F1A17] mb-1">Tgl Deadline</label>
               <input 
-                type="number" value={kuotaMaksimal} onChange={(e) => setKuotaMaksimal(parseInt(e.target.value))} required
+                type="date" value={deadlineTanggal} onChange={(e) => setDeadlineTanggal(e.target.value)} required
                 className="w-full h-10 border border-[#E2E8F0] rounded-lg px-3 text-sm focus:outline-none focus:border-[#D8241C]"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-[#1F1A17] mb-1">Deadline Reg (Optional)</label>
+              <label className="block text-xs font-semibold text-[#1F1A17] mb-1">Jam Deadline</label>
               <input 
-                type="date" value={deadlineRegistrasi} onChange={(e) => setDeadlineRegistrasi(e.target.value)}
+                type="time" value={deadlineWaktu} onChange={(e) => setDeadlineWaktu(e.target.value)} required
                 className="w-full h-10 border border-[#E2E8F0] rounded-lg px-3 text-sm focus:outline-none focus:border-[#D8241C]"
               />
             </div>
@@ -871,13 +943,13 @@ function KelolaAcaraPanel({ password, apiFetch, onRefresh, currentActiveId, setF
   );
 }
 
-function Field({ label, name, value, onChange, type = 'text' }) {
+function Field({ label, name, value, onChange, type = 'text', required = false }) {
   return (
     <div>
       <label className="block text-sm font-display font-semibold text-[#3A0708] mb-2">{label}</label>
       <input 
-        type={type} name={name} value={value} onChange={onChange} 
-        className="w-full h-12 border-[1.5px] border-[#E2E8F0] rounded-xl px-4 focus:outline-none focus:border-[#6B0F1A] focus:ring-[3px] focus:ring-[#6B0F1A]/12 transition-all font-body text-[#3A0708]" 
+        type={type} name={name} value={value} onChange={onChange} required={required}
+        className="w-full min-w-[200px] h-12 border-[1.5px] border-[#E2E8F0] rounded-xl px-4 focus:outline-none focus:border-[#6B0F1A] focus:ring-[3px] focus:ring-[#6B0F1A]/12 transition-all font-body text-[#3A0708]" 
       />
     </div>
   );
