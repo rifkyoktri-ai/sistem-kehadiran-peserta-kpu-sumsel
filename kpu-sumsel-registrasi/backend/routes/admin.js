@@ -64,6 +64,7 @@ router.put('/pengaturan', authAdmin, ctrlAcara.updatePengaturanAcara);
 router.get('/acara', authAdmin, ctrlAcara.ambilSemuaAcara);
 router.post('/acara', authAdmin, ctrlAcara.tambahAcara);
 router.put('/acara/aktif', authAdmin, ctrlAcara.setAcaraAktif);
+router.delete('/acara/:id', authAdmin, ctrlAcara.hapusAcara);
 
 // Backup database (dengan verifikasi + rotasi)
 router.get('/backup', authAdmin, async (req, res) => {

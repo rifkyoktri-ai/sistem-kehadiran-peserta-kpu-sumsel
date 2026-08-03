@@ -4,6 +4,19 @@ import { LOGOKPU_URL } from '../constants/logo';
 import { INSTANSI_OPTIONS, JABATAN_OPTIONS } from '../constants/masterData';
 
 const MobileCheckin = () => {
+  // ── Auth state ────────────────────────────────────────────────────────────────
+  const [authToken, setAuthToken] = useState(() => sessionStorage.getItem('mobile_checkin_token') || '');
+  const [authAcaraId, setAuthAcaraId] = useState(() => sessionStorage.getItem('mobile_checkin_acara_id') || '');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [loginAcaraId, setLoginAcaraId] = useState('');
+  const [loginAcaraList, setLoginAcaraList] = useState([]);
+  const [loginLoading, setLoginLoading] = useState(false);
+  const [loginError, setLoginError] = useState('');
+  const [loginAcaraLoading, setLoginAcaraLoading] = useState(true);
+
+  const isLoggedIn = Boolean(authToken);
+
+  // ── Scanner / Check-in state ──────────────────────────────────────────────────
   const [mode, setMode] = useState('scanner');
   const [scanning, setScanning] = useState(false);
   const [peserta, setPeserta] = useState(null);
@@ -52,11 +65,19 @@ const MobileCheckin = () => {
     setMode('confirm');
     try {
       const res = await fetch(
-        `/api/peserta/by-nomor/${encodeURIComponent(nomorUrut)}`
+        `/api/peserta/by-nomor/${encodeURIComponent(nomorUrut)}`,
+        { headers: { 'Authorization': `Bearer ${authToken}` } }
       );
       const data = await res.json();
-      if (data.error) {
-        setErrorMsg(data.error);
+      if (res.status === 401) {
+        // Token kadaluarsa / tidak valid — paksa login ulang
+        handleLogout();
+        setErrorMsg('Sesi berakhir. Silakan login ulang.');
+        setMode('error');
+        return;
+      }
+      if (!res.ok || data.error) {
+        setErrorMsg(data.error || data.pesan || 'Peserta tidak ditemukan.');
         setMode('error');
       } else {
         setPeserta(data.peserta || data);
@@ -152,9 +173,15 @@ const MobileCheckin = () => {
     try {
       const res = await fetch(
         `/api/peserta/${peserta.id}/hadir`,
-        { method: 'PUT', headers: { 'Content-Type': 'application/json' } }
+        { method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` } }
       );
       const data = await res.json();
+      if (res.status === 401) {
+        handleLogout();
+        setErrorMsg('Sesi berakhir. Silakan login ulang.');
+        setMode('error');
+        return;
+      }
       if (data.success || data.sukses) {
         setMode('success');
         setScanCount(prev => prev + 1);
@@ -166,7 +193,7 @@ const MobileCheckin = () => {
           startCamera();
         }, 2500);
       } else {
-        setErrorMsg(data.error || 'Gagal update kehadiran.');
+        setErrorMsg(data.pesan || data.error || 'Gagal update kehadiran.');
         setMode('error');
       }
     } catch {
@@ -216,6 +243,18 @@ const MobileCheckin = () => {
       }
       setWalkinHasil(data.data);
       setWalkinMsg(data.pesan || 'Walk-in berhasil!');
+
+      // Set timeout otomatis 5 detik untuk kembali ke form kosong
+      const timer = setTimeout(() => {
+        setWalkinHasil(null);
+        setWalkinMsg('');
+        setWalkinForm({ nama_lengkap: '', instansi: '', jabatan: '', no_hp: '' });
+        setWalkinFotoBase64(null);
+      }, 5000);
+
+      // Simpan timer ref agar bisa dibatalkan jika user mengklik manual
+      window.walkinResetTimer = timer;
+
     } catch {
       setWalkinMsg('Gagal terhubung ke server.');
     } finally {
@@ -235,10 +274,169 @@ const MobileCheckin = () => {
     }
   };
 
+  // ── Login / Logout ─────────────────────────────────────────────────────────
+  const handleLogout = () => {
+    sessionStorage.removeItem('mobile_checkin_token');
+    sessionStorage.removeItem('mobile_checkin_acara_id');
+    setAuthToken('');
+    setAuthAcaraId('');
+    stopCamera();
+  };
+
+  const handleLogin = async () => {
+    if (!loginAcaraId) { setLoginError('Pilih acara terlebih dahulu.'); return; }
+    if (!loginPassword) { setLoginError('Masukkan password petugas.'); return; }
+    setLoginLoading(true);
+    setLoginError('');
+    try {
+      const resp = await fetch('/api/checkin/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: loginPassword, id_acara: loginAcaraId }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) {
+        setLoginError(data.pesan || 'Login gagal. Periksa password Anda.');
+        return;
+      }
+      const token = data.data?.token;
+      const acaraId = data.data?.id_acara || loginAcaraId;
+      if (!token) { setLoginError('Respons tidak valid dari server.'); return; }
+      sessionStorage.setItem('mobile_checkin_token', token);
+      sessionStorage.setItem('mobile_checkin_acara_id', acaraId);
+      setAuthToken(token);
+      setAuthAcaraId(acaraId);
+      setLoginPassword('');
+    } catch {
+      setLoginError('Tidak dapat terhubung ke server.');
+    } finally {
+      setLoginLoading(false);
+    }
+  };
+
+  // Ambil daftar acara untuk login screen
   useEffect(() => {
-    startCamera();
-    return () => stopCamera();
+    setLoginAcaraLoading(true);
+    fetch('/api/checkin/acara-aktif')
+      .then(r => r.json())
+      .then(d => {
+        const list = d.data || [];
+        setLoginAcaraList(list);
+        if (list.length > 0) setLoginAcaraId(list[0].id);
+      })
+      .catch(() => {})
+      .finally(() => setLoginAcaraLoading(false));
   }, []);
+
+  useEffect(() => {
+    if (isLoggedIn) startCamera();
+    return () => stopCamera();
+  }, [isLoggedIn]);
+
+  // ── LOGIN SCREEN ────────────────────────────────────────────────────────────
+  if (!isLoggedIn) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        background: 'linear-gradient(135deg,#1a0304,#2A0508,#1a0304)',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontFamily: 'Arial, sans-serif',
+        padding: '24px',
+      }}>
+        <div style={{
+          width: '100%',
+          maxWidth: '360px',
+          background: 'linear-gradient(135deg,rgba(42,5,8,0.9),rgba(58,7,8,0.9))',
+          border: '1.5px solid rgba(200,147,10,0.4)',
+          borderRadius: '16px',
+          padding: '28px 24px',
+          boxShadow: '0 20px 60px rgba(0,0,0,0.6)',
+        }}>
+          <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+            <img src={LOGOKPU_URL} alt="KPU" style={{ height: '48px', objectFit: 'contain', marginBottom: '10px' }} />
+            <div style={{ fontSize: '12px', fontWeight: '700', color: '#FFD700', letterSpacing: '1px' }}>KPU SUMATERA SELATAN</div>
+            <div style={{ fontSize: '10px', color: 'rgba(200,147,10,0.6)', marginTop: '2px' }}>Panel Check-in Mobile</div>
+            <div style={{ height: '1px', background: 'linear-gradient(90deg,transparent,rgba(200,147,10,0.3),transparent)', margin: '14px 0' }} />
+            <div style={{ fontSize: '16px', fontWeight: '700', color: '#fff' }}>🔐 Login Petugas</div>
+          </div>
+
+          {loginError && (
+            <div style={{
+              background: 'rgba(220,38,38,0.12)',
+              border: '1px solid rgba(220,38,38,0.35)',
+              borderRadius: '8px',
+              padding: '10px 12px',
+              fontSize: '12px',
+              color: '#f87171',
+              marginBottom: '14px',
+              textAlign: 'center',
+            }}>{loginError}</div>
+          )}
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div>
+              <div style={{ fontSize: '11px', color: 'rgba(245,208,96,0.7)', marginBottom: '6px' }}>Pilih Acara Sesi</div>
+              {loginAcaraLoading ? (
+                <div style={{ fontSize: '12px', color: 'rgba(200,147,10,0.5)', padding: '12px', textAlign: 'center' }}>Memuat daftar acara...</div>
+              ) : loginAcaraList.length === 0 ? (
+                <div style={{ fontSize: '12px', color: '#f87171', padding: '12px', textAlign: 'center', background: 'rgba(220,38,38,0.1)', borderRadius: '8px', border: '1px solid rgba(220,38,38,0.3)' }}>Tidak ada acara aktif saat ini.</div>
+              ) : (
+                <select
+                  value={loginAcaraId}
+                  onChange={e => setLoginAcaraId(e.target.value)}
+                  style={{
+                    width: '100%', padding: '12px 14px', borderRadius: '10px',
+                    background: 'rgba(200,147,10,0.08)', border: '1.5px solid rgba(200,147,10,0.4)',
+                    color: '#FFD700', fontSize: '13px', outline: 'none', boxSizing: 'border-box',
+                  }}
+                >
+                  {loginAcaraList.map(a => (
+                    <option key={a.id} value={a.id} style={{ background: '#1a0304', color: '#FFD700' }}>
+                      {a.nama_acara} ({a.kode_acara})
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+
+            <div>
+              <div style={{ fontSize: '11px', color: 'rgba(245,208,96,0.7)', marginBottom: '6px' }}>Password Petugas</div>
+              <input
+                type="password"
+                value={loginPassword}
+                onChange={e => setLoginPassword(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleLogin()}
+                placeholder="Masukkan password petugas..."
+                style={{
+                  width: '100%', padding: '12px 14px', borderRadius: '10px',
+                  background: 'rgba(200,147,10,0.08)', border: '1.5px solid rgba(200,147,10,0.4)',
+                  color: '#FFD700', fontSize: '15px', outline: 'none',
+                  boxSizing: 'border-box', letterSpacing: '2px', fontFamily: 'monospace',
+                }}
+              />
+            </div>
+
+            <button
+              onClick={handleLogin}
+              disabled={loginLoading || loginAcaraList.length === 0}
+              style={{
+                background: loginLoading ? 'rgba(107,15,26,0.5)' : 'linear-gradient(135deg,#6B0F1A,#4A0A10)',
+                border: '1.5px solid #C8930A',
+                color: '#FFD700', fontSize: '15px', fontWeight: '700',
+                padding: '14px', borderRadius: '10px', cursor: loginLoading ? 'not-allowed' : 'pointer',
+                marginTop: '4px', transition: 'opacity 0.2s',
+              }}
+            >
+              {loginLoading ? '⏳ Memverifikasi...' : '🚀 Masuk Panel Check-in'}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{
@@ -276,18 +474,26 @@ const MobileCheckin = () => {
             Panel Check-in Mobile
           </div>
         </div>
-        <div style={{
-          background:'rgba(200,147,10,0.15)',
-          border:'1px solid rgba(200,147,10,0.4)',
-          borderRadius:'999px',padding:'4px 10px',
-          position:'relative',zIndex:1,
-        }}>
-          <div style={{fontSize:'8px',color:'rgba(245,208,96,0.6)',textAlign:'center'}}>
-            SCAN
+        <div style={{ display:'flex', alignItems:'center', gap:'8px', position:'relative', zIndex:1 }}>
+          <div style={{
+            background:'rgba(200,147,10,0.15)',
+            border:'1px solid rgba(200,147,10,0.4)',
+            borderRadius:'999px',padding:'4px 10px',
+          }}>
+            <div style={{fontSize:'8px',color:'rgba(245,208,96,0.6)',textAlign:'center'}}>SCAN</div>
+            <div style={{fontSize:'14px',fontWeight:'700',color:'#FFD700',textAlign:'center',lineHeight:1}}>{scanCount}</div>
           </div>
-          <div style={{fontSize:'14px',fontWeight:'700',color:'#FFD700',textAlign:'center',lineHeight:1}}>
-            {scanCount}
-          </div>
+          <button
+            onClick={handleLogout}
+            title="Keluar"
+            style={{
+              background:'rgba(220,38,38,0.15)',
+              border:'1px solid rgba(220,38,38,0.4)',
+              borderRadius:'999px', padding:'4px 10px',
+              color:'#f87171', fontSize:'11px', fontWeight:'700',
+              cursor:'pointer', lineHeight:1.4,
+            }}
+          >Keluar</button>
         </div>
       </div>
 
@@ -490,7 +696,7 @@ const MobileCheckin = () => {
                       fontSize:'17px',fontWeight:'700',
                       color:'#fff',lineHeight:1.2,marginBottom:'6px',
                     }}>
-                      {peserta.nama}
+                      {peserta.nama_lengkap || peserta.nama}
                     </div>
                     <div style={{
                       display:'inline-block',
@@ -599,7 +805,7 @@ const MobileCheckin = () => {
                 Kehadiran Tercatat!
               </div>
               <div style={{fontSize:'15px',color:'#fff',marginBottom:'4px'}}>
-                {peserta?.nama}
+                {peserta?.nama_lengkap || peserta?.nama}
               </div>
               <div style={{fontSize:'13px',color:'rgba(255,255,255,0.5)'}}>
                 {peserta?.nomor_urut}
@@ -652,14 +858,14 @@ const MobileCheckin = () => {
             </div>
             <input
               value={manualInput}
-              onChange={e => setManualInput(e.target.value.toUpperCase())}
-              placeholder="Contoh: KPU-0001 atau EKS-0001"
+              onChange={e => setManualInput(e.target.value)}
+              placeholder="Ketik Nama Peserta atau Nomor (KPU-0001)"
               style={{
                 background:'rgba(200,147,10,0.08)',
                 border:'1.5px solid rgba(200,147,10,0.4)',
                 borderRadius:'10px',padding:'14px 16px',
                 fontSize:'16px',color:'#FFD700',
-                fontFamily:'monospace',letterSpacing:'1px',
+                letterSpacing:'0.5px',
                 outline:'none',width:'100%',boxSizing:'border-box',
               }}
             />
@@ -759,13 +965,22 @@ const MobileCheckin = () => {
                     <div style={{fontSize:'11px',color:'rgba(255,255,255,0.5)',fontFamily:'monospace',marginTop:'2px'}}>
                       {walkinHasil?.nomor_urut} — {walkinHasil?.id}
                     </div>
-                    <button onClick={() => { setWalkinHasil(null); setWalkinMsg(''); setWalkinForm({nama_lengkap:'',instansi:'',jabatan:'',no_hp:''}); setWalkinFotoBase64(null); }}
+                    <button onClick={() => { 
+                      if (window.walkinResetTimer) clearTimeout(window.walkinResetTimer);
+                      setWalkinHasil(null); 
+                      setWalkinMsg(''); 
+                      setWalkinForm({nama_lengkap:'',instansi:'',jabatan:'',no_hp:''}); 
+                      setWalkinFotoBase64(null); 
+                    }}
                       style={{
                         background:'linear-gradient(135deg,#6B0F1A,#4A0A10)',border:'1.5px solid #C8930A',
                         color:'#FFD700',fontSize:'13px',fontWeight:'700',padding:'10px 20px',borderRadius:'8px',cursor:'pointer',marginTop:'10px',
                       }}>
                       Daftar Lagi
                     </button>
+                    <div style={{fontSize:'10px',color:'rgba(255,255,255,0.4)',marginTop:'8px'}}>
+                      Kembali ke form otomatis dalam 5 detik...
+                    </div>
                   </div>
                 )}
 

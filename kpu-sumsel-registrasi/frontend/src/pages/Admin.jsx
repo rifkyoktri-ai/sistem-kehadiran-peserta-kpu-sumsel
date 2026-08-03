@@ -528,7 +528,7 @@ function Dashboard({ password, onLogout }) {
                   password={password} 
                   idAcara={idAcaraSelected}
                   onSuccess={() => tampilFeedback('success', 'Pengaturan berhasil disimpan!')} 
-                  onError={() => tampilFeedback('error', 'Gagal menyimpan pengaturan.')} 
+                  onError={(pesan) => tampilFeedback('error', pesan || 'Gagal menyimpan pengaturan.')} 
                 />
               </div>
             )}
@@ -656,10 +656,13 @@ function PengaturanForm({ password, idAcara, onSuccess, onError }) {
         headers: getAuthHeader(password),
         body: JSON.stringify(bodyToSave),
       });
-      if (!resp.ok) throw new Error();
+      const data = await resp.json();
+      if (!resp.ok) {
+        throw new Error(data.pesan || 'Gagal menyimpan pengaturan.');
+      }
       if (onSuccess) onSuccess();
-    } catch {
-      if (onError) onError();
+    } catch (err) {
+      if (onError) onError(err.message || 'Gagal menyimpan pengaturan.');
     }
     setSaving(false);
   };
@@ -676,7 +679,7 @@ function PengaturanForm({ password, idAcara, onSuccess, onError }) {
           <Field label="Waktu Acara" name="waktu_acara" value={form.waktu_acara || ''} onChange={handleChange} type="time" />
         </div>
         <Field label="Lokasi Acara" name="lokasi_acara" value={form.lokasi_acara || ''} onChange={handleChange} />
-        <Field label="Kuota Maksimal" name="kuota_maksimal" value={form.kuota_maksimal || '500'} onChange={handleChange} type="number" required={true} />
+        <Field label="Kuota Maksimal" name="kuota_maksimal" value={form.kuota_maksimal ?? ''} onChange={handleChange} type="number" required={true} />
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <Field label="Tanggal Deadline" name="deadline_tanggal" value={form.deadline_tanggal || ''} onChange={handleChange} type="date" required={true} />
           <Field label="Jam Deadline" name="deadline_waktu" value={form.deadline_waktu || ''} onChange={handleChange} type="time" required={true} />
@@ -798,6 +801,29 @@ function KelolaAcaraPanel({ password, apiFetch, onRefresh, currentActiveId, setF
     }
   };
 
+  const handleDelete = async (id, nama) => {
+    if (!window.confirm(`PERINGATAN KRITIS:\nApakah Anda yakin ingin menghapus acara "${nama}"?\nSemua data peserta dan audit log yang terhubung ke acara ini akan DIHAPUS PERMANEN.`)) {
+      return;
+    }
+
+    try {
+      const resp = await fetch(`/api/admin/acara/${id}`, {
+        method: 'DELETE',
+        headers: getAuthHeader(password)
+      });
+      const data = await resp.json();
+      if (resp.ok) {
+        setFeedback(`✅ ${data.pesan || 'Acara berhasil dihapus.'}`);
+        muatAcara();
+        if (onRefresh) onRefresh();
+      } else {
+        setFeedback(`❌ ${data.pesan || 'Gagal menghapus acara.'}`);
+      }
+    } catch {
+      setFeedback('❌ Gagal menghubungi server.');
+    }
+  };
+
   const generateRandomPassword = () => {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
     let pass = 'KPU';
@@ -832,14 +858,22 @@ function KelolaAcaraPanel({ password, apiFetch, onRefresh, currentActiveId, setF
                       <p className="text-sm text-[#6B5A5A] font-body mt-1">📅 {ac.tanggal_acara} | 📍 {ac.lokasi_acara}</p>
                       <p className="text-xs text-[#9CA3AF] mt-2">Password Petugas: <code className="font-mono font-bold text-[#1F1A17]">{ac.password_petugas}</code></p>
                     </div>
-                    <div>
+                    <div className="flex flex-col sm:flex-row gap-2">
                       {!ac.adalah_aktif && (
-                        <button 
-                          onClick={() => handleSetActive(ac.id)}
-                          className="px-3 py-1.5 bg-[#D2B704] text-[#1F1A17] hover:bg-[#E8CC20] font-display font-bold text-xs rounded-lg transition-all shadow-sm"
-                        >
-                          SET AKTIF
-                        </button>
+                        <>
+                          <button 
+                            onClick={() => handleSetActive(ac.id)}
+                            className="px-3 py-1.5 bg-[#D2B704] text-[#1F1A17] hover:bg-[#E8CC20] font-display font-bold text-xs rounded-lg transition-all shadow-sm whitespace-nowrap"
+                          >
+                            SET AKTIF
+                          </button>
+                          <button 
+                            onClick={() => handleDelete(ac.id, ac.nama_acara)}
+                            className="px-3 py-1.5 bg-[#DC2626] text-white hover:bg-[#B91C1C] font-display font-bold text-xs rounded-lg transition-all shadow-sm whitespace-nowrap"
+                          >
+                            HAPUS
+                          </button>
+                        </>
                       )}
                     </div>
                   </div>
@@ -896,7 +930,7 @@ function KelolaAcaraPanel({ password, apiFetch, onRefresh, currentActiveId, setF
           <div>
             <label className="block text-xs font-semibold text-[#1F1A17] mb-1">Kuota Max</label>
             <input 
-              type="number" value={kuotaMaksimal} onChange={(e) => setKuotaMaksimal(parseInt(e.target.value))} required
+              type="number" value={kuotaMaksimal} onChange={(e) => setKuotaMaksimal(e.target.value === '' ? '' : parseInt(e.target.value))} required
               className="w-full h-10 border border-[#E2E8F0] rounded-lg px-3 text-sm focus:outline-none focus:border-[#D8241C]"
             />
           </div>

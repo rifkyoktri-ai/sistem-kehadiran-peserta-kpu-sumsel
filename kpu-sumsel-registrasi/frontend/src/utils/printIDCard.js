@@ -1,61 +1,36 @@
-import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
-import QRCode from 'qrcode';
-
+/**
+ * Mengunduh PDF ID Card yang dibuat secara langsung oleh Server Node.js (PDFKit / Backend PDF Generator).
+ */
 export async function cetakIDCard(peserta = null) {
-  const element = document.getElementById('id-card-print');
-  if (!element) return;
-
-  const qrImg = element.querySelector('#qr-code-img');
-  if (qrImg && peserta?.id) {
-    try {
-      const qrDataUrl = await QRCode.toDataURL(String(peserta.id), {
-        width: 64,
-        margin: 1,
-        color: { dark: '#3D0C0C', light: '#FFFFFF' },
-      });
-      if (qrDataUrl !== qrImg.src) {
-        qrImg.src = qrDataUrl;
-        await new Promise((resolve) => {
-          qrImg.onload = resolve;
-          qrImg.onerror = resolve;
-        });
-      }
-    } catch (e) {
-      // proceed without QR
-    }
+  if (!peserta?.id) {
+    alert('Data peserta tidak valid.');
+    return;
   }
 
-  const images = element.querySelectorAll('img');
-  await Promise.all(Array.from(images).map((img) => {
-    if (img.complete && img.naturalWidth > 0) return Promise.resolve();
-    return new Promise((resolve) => {
-      img.onload = resolve;
-      img.onerror = resolve;
-    });
-  }));
+  const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+  const downloadUrl = `${BASE_URL}/peserta/${peserta.id}/pdf`;
 
-  const canvas = await html2canvas(element, {
-    scale: 3,
-    useCORS: true,
-    allowTaint: true,
-    backgroundColor: null,
-    logging: false,
-  });
+  try {
+    const response = await fetch(downloadUrl);
+    if (!response.ok) {
+      throw new Error(`Server merespon dengan status ${response.status}`);
+    }
 
-  const rect = element.getBoundingClientRect();
-  const aspectRatio = rect.width / rect.height;
-  const pdfWidth = 105;
-  const pdfHeight = pdfWidth / aspectRatio;
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
 
-  const pdf = new jsPDF({
-    orientation: 'portrait',
-    unit: 'mm',
-    format: [pdfWidth, pdfHeight],
-  });
+    const prefix = peserta.tipe_peserta === 'internal' ? 'KPU' : 'EKS';
+    const nomorFormatted = peserta.nomor_urut ? `${prefix}-${String(peserta.nomor_urut).padStart(4, '0')}` : peserta.id;
+    a.download = `IDCard-${nomorFormatted}.pdf`;
 
-  pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, pdfWidth, pdfHeight);
-
-  const nomorUrut = peserta?.nomor_urut || peserta?.id || 'IDCard';
-  pdf.save(`IDCard-${nomorUrut}.pdf`);
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+  } catch (err) {
+    console.error('Gagal mengunduh ID Card dari server:', err);
+    alert('Gagal mengunduh PDF ID Card dari server. Pastikan server backend aktif.');
+  }
 }

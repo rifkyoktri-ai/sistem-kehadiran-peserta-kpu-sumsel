@@ -61,11 +61,33 @@ function jalankanMigrasi() {
   let tabelPesertaAda = false;
   let sudahMultiAcara = false;
 
+  const USE_POSTGRES = Boolean(process.env.DATABASE_URL);
+
   try {
-    const infoPeserta = db.prepare('PRAGMA table_info(peserta)').all();
-    if (infoPeserta.length > 0) {
-      tabelPesertaAda = true;
-      sudahMultiAcara = infoPeserta.some(col => col.name === 'acara_id');
+    if (USE_POSTGRES) {
+      const row = db.prepare(`
+        SELECT EXISTS (
+          SELECT FROM information_schema.tables 
+          WHERE table_name = 'peserta'
+        ) AS exists
+      `).get();
+      tabelPesertaAda = row && (row.exists === true || row.exists === 'true' || row.exists === 1);
+      
+      if (tabelPesertaAda) {
+        const colRow = db.prepare(`
+          SELECT EXISTS (
+            SELECT FROM information_schema.columns 
+            WHERE table_name = 'peserta' AND column_name = 'acara_id'
+          ) AS exists
+        `).get();
+        sudahMultiAcara = colRow && (colRow.exists === true || colRow.exists === 'true' || colRow.exists === 1);
+      }
+    } else {
+      const infoPeserta = db.prepare('PRAGMA table_info(peserta)').all();
+      if (infoPeserta.length > 0) {
+        tabelPesertaAda = true;
+        sudahMultiAcara = infoPeserta.some(col => col.name === 'acara_id');
+      }
     }
   } catch (_) {
     tabelPesertaAda = false;
@@ -105,7 +127,6 @@ function jalankanMigrasi() {
           nama_lengkap    TEXT NOT NULL,
           instansi        TEXT NOT NULL,
           jabatan         TEXT NOT NULL,
-          nik             TEXT DEFAULT NULL,
           email           TEXT DEFAULT NULL,
           no_hp           TEXT NOT NULL,
           catatan         TEXT DEFAULT '',
@@ -130,17 +151,31 @@ function jalankanMigrasi() {
       `);
 
       // Buat audit_log_temp baru
-      db.exec(`
-        CREATE TABLE audit_log_temp (
-          id         INTEGER PRIMARY KEY AUTOINCREMENT,
-          acara_id   TEXT REFERENCES acara(id) ON DELETE CASCADE,
-          waktu      TEXT NOT NULL,
-          aktor      TEXT NOT NULL,
-          aksi       TEXT NOT NULL,
-          id_peserta TEXT NOT NULL,
-          detail     TEXT DEFAULT ''
-        )
-      `);
+      if (USE_POSTGRES) {
+        db.exec(`
+          CREATE TABLE audit_log_temp (
+            id         SERIAL PRIMARY KEY,
+            acara_id   TEXT REFERENCES acara(id) ON DELETE CASCADE,
+            waktu      TEXT NOT NULL,
+            aktor      TEXT NOT NULL,
+            aksi       TEXT NOT NULL,
+            id_peserta TEXT NOT NULL,
+            detail     TEXT DEFAULT ''
+          )
+        `);
+      } else {
+        db.exec(`
+          CREATE TABLE audit_log_temp (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            acara_id   TEXT REFERENCES acara(id) ON DELETE CASCADE,
+            waktu      TEXT NOT NULL,
+            aktor      TEXT NOT NULL,
+            aksi       TEXT NOT NULL,
+            id_peserta TEXT NOT NULL,
+            detail     TEXT DEFAULT ''
+          )
+        `);
+      }
 
       // Salin audit log ke audit_log_temp
       db.exec(`
@@ -197,7 +232,6 @@ function jalankanMigrasi() {
           nama_lengkap    TEXT NOT NULL,
           instansi        TEXT NOT NULL,
           jabatan         TEXT NOT NULL,
-          nik             TEXT DEFAULT NULL,
           email           TEXT DEFAULT NULL,
           no_hp           TEXT NOT NULL,
           catatan         TEXT DEFAULT '',
@@ -212,19 +246,32 @@ function jalankanMigrasi() {
         )
       `);
 
-
       // 3. Buat tabel audit_log baru
-      db.exec(`
-        CREATE TABLE audit_log (
-          id         INTEGER PRIMARY KEY AUTOINCREMENT,
-          acara_id   TEXT REFERENCES acara(id) ON DELETE CASCADE,
-          waktu      TEXT NOT NULL,
-          aktor      TEXT NOT NULL,
-          aksi       TEXT NOT NULL,
-          id_peserta TEXT NOT NULL,
-          detail     TEXT DEFAULT ''
-        )
-      `);
+      if (USE_POSTGRES) {
+        db.exec(`
+          CREATE TABLE audit_log (
+            id         SERIAL PRIMARY KEY,
+            acara_id   TEXT REFERENCES acara(id) ON DELETE CASCADE,
+            waktu      TEXT NOT NULL,
+            aktor      TEXT NOT NULL,
+            aksi       TEXT NOT NULL,
+            id_peserta TEXT NOT NULL,
+            detail     TEXT DEFAULT ''
+          )
+        `);
+      } else {
+        db.exec(`
+          CREATE TABLE audit_log (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            acara_id   TEXT REFERENCES acara(id) ON DELETE CASCADE,
+            waktu      TEXT NOT NULL,
+            aktor      TEXT NOT NULL,
+            aksi       TEXT NOT NULL,
+            id_peserta TEXT NOT NULL,
+            detail     TEXT DEFAULT ''
+          )
+        `);
+      }
 
       // 4. Buat tabel pengaturan_acara baru
       db.exec(`
@@ -284,25 +331,21 @@ function jalankanMigrasi() {
 
   // Migrasi: partial unique index untuk email (mencegah duplikat email dalam satu acara)
   try {
-    const indexAda = db.prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'idx_peserta_email_unique'").get();
+    let indexAda = false;
+    if (USE_POSTGRES) {
+      const row = db.prepare("SELECT indexname AS name FROM pg_indexes WHERE indexname = 'idx_peserta_email_unique'").get();
+      indexAda = Boolean(row);
+    } else {
+      const row = db.prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'idx_peserta_email_unique'").get();
+      indexAda = Boolean(row);
+    }
+    
     if (!indexAda) {
       db.exec("CREATE UNIQUE INDEX idx_peserta_email_unique ON peserta(acara_id, email) WHERE email IS NOT NULL AND email != ''");
-      logger.info('[MIGRASI] Partial unique index idx_peserta_email_unique berhasil ditambahkan.');
+      logger.info('[MIGRASI] Partial unique index idx_peserta_email_unique berhasil diperiksa/ditambahkan.');
     }
   } catch (err) {
     logger.error('[MIGRASI] Gagal menambah partial unique index email:', err.message);
-  }
-
-  // Migrasi: tambah kolom nik jika belum ada
-  try {
-    const colsPesertaNik = db.prepare('PRAGMA table_info(peserta)').all();
-    const sudahAdaNik = colsPesertaNik.some(c => c.name === 'nik');
-    if (!sudahAdaNik) {
-      db.exec("ALTER TABLE peserta ADD COLUMN nik TEXT DEFAULT NULL");
-      logger.info('[MIGRASI] Kolom nik berhasil ditambahkan ke tabel peserta.');
-    }
-  } catch (err) {
-    logger.error('[MIGRASI] Gagal menambah kolom nik:', err.message);
   }
 
   // Migrasi: tambah kolom dihapus_pada & dihapus_oleh untuk soft delete
@@ -335,16 +378,25 @@ function jalankanMigrasi() {
   }
 
   // Aktifkan foreign keys & buat index
-  db.exec('PRAGMA foreign_keys = ON');
-
-  db.exec('CREATE INDEX IF NOT EXISTS idx_peserta_status ON peserta(status)');
-  db.exec('CREATE INDEX IF NOT EXISTS idx_peserta_nomor_urut ON peserta(nomor_urut)');
-  db.exec('CREATE INDEX IF NOT EXISTS idx_peserta_acara ON peserta(acara_id)');
-  db.exec('CREATE INDEX IF NOT EXISTS idx_peserta_tipe ON peserta(tipe_peserta)');
-  db.exec('CREATE INDEX IF NOT EXISTS idx_peserta_nik ON peserta(nik)');
-  db.exec('CREATE INDEX IF NOT EXISTS idx_log_peserta ON audit_log(id_peserta)');
-  db.exec('CREATE INDEX IF NOT EXISTS idx_log_aksi ON audit_log(aksi)');
-  db.exec('CREATE INDEX IF NOT EXISTS idx_log_acara ON audit_log(acara_id)');
+  if (!USE_POSTGRES) {
+    db.exec('PRAGMA foreign_keys = ON');
+    db.exec('CREATE INDEX IF NOT EXISTS idx_peserta_status ON peserta(status)');
+    db.exec('CREATE INDEX IF NOT EXISTS idx_peserta_nomor_urut ON peserta(nomor_urut)');
+    db.exec('CREATE INDEX IF NOT EXISTS idx_peserta_acara ON peserta(acara_id)');
+    db.exec('CREATE INDEX IF NOT EXISTS idx_peserta_tipe ON peserta(tipe_peserta)');
+    db.exec('CREATE INDEX IF NOT EXISTS idx_log_peserta ON audit_log(id_peserta)');
+    db.exec('CREATE INDEX IF NOT EXISTS idx_log_aksi ON audit_log(aksi)');
+    db.exec('CREATE INDEX IF NOT EXISTS idx_log_acara ON audit_log(acara_id)');
+  } else {
+    // Di PostgreSQL, IF NOT EXISTS didukung penuh
+    db.exec('CREATE INDEX IF NOT EXISTS idx_peserta_status ON peserta(status)');
+    db.exec('CREATE INDEX IF NOT EXISTS idx_peserta_nomor_urut ON peserta(nomor_urut)');
+    db.exec('CREATE INDEX IF NOT EXISTS idx_peserta_acara ON peserta(acara_id)');
+    db.exec('CREATE INDEX IF NOT EXISTS idx_peserta_tipe ON peserta(tipe_peserta)');
+    db.exec('CREATE INDEX IF NOT EXISTS idx_log_peserta ON audit_log(id_peserta)');
+    db.exec('CREATE INDEX IF NOT EXISTS idx_log_aksi ON audit_log(aksi)');
+    db.exec('CREATE INDEX IF NOT EXISTS idx_log_acara ON audit_log(acara_id)');
+  }
 
   logger.info('[MIGRASI] Semua prasyarat, index, dan foreign key berhasil diperiksa.');
 }

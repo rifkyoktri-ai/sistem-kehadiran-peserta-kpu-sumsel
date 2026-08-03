@@ -63,33 +63,47 @@ export default function IDCard({ peserta, acaraInfo }) {
 
       {/* ── HEADER: Logo + Nama Lembaga ── */}
       <div style={{
-        padding: '12px 16px 10px',
+        padding: '12px 12px 10px',
         display: 'flex',
         alignItems: 'center',
-        gap: '10px',
+        justifyContent: 'space-between',
         background: 'linear-gradient(180deg,#2A0606 0%,#3D0C0C 100%)',
         borderBottom: '1px solid rgba(200,147,10,0.35)',
         flexShrink: 0,
       }}>
-        <img
-          src={LOGOKPU_URL}
-          alt="Logo KPU"
-          style={{ width: '42px', height: '42px', objectFit: 'contain', flexShrink: 0 }}
-        />
-        <div>
-          <div style={{
-            fontSize: '10.5px', fontWeight: 'bold', color: '#FFD700',
-            letterSpacing: '0.8px', textTransform: 'uppercase', lineHeight: 1.3,
-          }}>
-            Komisi Pemilihan Umum
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <img
+            src={LOGOKPU_URL}
+            alt="Logo KPU"
+            style={{ width: '38px', height: '38px', objectFit: 'contain', flexShrink: 0 }}
+          />
+          <div>
+            <div style={{
+              fontSize: '10px', fontWeight: 'bold', color: '#FFD700',
+              letterSpacing: '0.5px', textTransform: 'uppercase', lineHeight: 1.3,
+            }}>
+              Komisi Pemilihan Umum
+            </div>
+            <div style={{
+              fontSize: '8px', color: '#C8930A',
+              letterSpacing: '0.3px', textTransform: 'uppercase',
+              lineHeight: 1.3, marginTop: '1px',
+            }}>
+              Provinsi Sumatera Selatan
+            </div>
           </div>
-          <div style={{
-            fontSize: '8.5px', color: '#C8930A',
-            letterSpacing: '0.4px', textTransform: 'uppercase',
-            lineHeight: 1.3, marginTop: '1px',
-          }}>
-            Provinsi Sumatera Selatan
-          </div>
+        </div>
+        <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexShrink: 0 }}>
+          <img
+            src="/logo-bangga.svg"
+            alt="Bangga Melayani Bangsa"
+            style={{ height: '18px', width: 'auto', objectFit: 'contain', filter: 'brightness(0) invert(1)', opacity: 0.85 }}
+          />
+          <img
+            src="/logo-berakhlak.svg"
+            alt="BerAKHLAK"
+            style={{ height: '18px', width: 'auto', objectFit: 'contain', filter: 'brightness(0) invert(1)', opacity: 0.85 }}
+          />
         </div>
       </div>
 

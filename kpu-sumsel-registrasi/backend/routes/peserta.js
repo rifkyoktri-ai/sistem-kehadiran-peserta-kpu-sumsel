@@ -61,7 +61,9 @@ router.get('/acara/info', controller.ambilInfoAcara);
 router.post('/peserta/daftar', validasiDaftar, validate, controller.daftarPeserta);
 router.post('/peserta/cek-status', controller.cekStatusPeserta);
 router.get('/peserta/info/:id', controller.infoPesertaById);
+router.get('/peserta/:id/pdf', controller.downloadIDCardPDF);
 router.get('/peserta/by-nomor/:nomor_urut', authPetugas, controller.cariByNomorUrut);
 router.put('/peserta/:id/hadir', authPetugas, controller.tandaiHadirById);
+
 
 module.exports = router;

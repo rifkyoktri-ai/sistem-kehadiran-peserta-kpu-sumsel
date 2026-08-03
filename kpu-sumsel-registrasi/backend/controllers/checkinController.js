@@ -13,17 +13,31 @@ const logger = require('../utils/logger');
 const { sanitizeInput } = require('../utils/sanitize');
 
 /**
- * Mencari peserta berdasarkan ID atau Email dalam scope acara tertentu.
+ * Mencari peserta berdasarkan ID, nomor urut, no HP, atau nama (LIKE parsial).
+ * Urutan prioritas: id → nomor_urut → no_hp → nama_lengkap
  */
 function cariPeserta(db, identifier, acaraId) {
-  if (acaraId) {
-    return (
-      db.prepare('SELECT * FROM peserta WHERE acara_id = ? AND id = ?').get(acaraId, identifier)
-    );
-  }
-  return (
-    db.prepare('SELECT * FROM peserta WHERE id = ?').get(identifier)
-  );
+  const kw = identifier.trim();
+  const scopeWhere = acaraId ? 'acara_id = ? AND ' : '';
+  const scopeParam = acaraId ? [acaraId] : [];
+
+  // 1. Cari exact match berdasarkan ID registrasi
+  let row = db.prepare(`SELECT * FROM peserta WHERE ${scopeWhere}id = ?`).get(...[...scopeParam, kw]);
+  if (row) return row;
+
+  // 2. Cari exact match berdasarkan nomor urut (mis: KPU-0001 / EKS-0001)
+  row = db.prepare(`SELECT * FROM peserta WHERE ${scopeWhere}UPPER(nomor_urut) = UPPER(?)`).get(...[...scopeParam, kw]);
+  if (row) return row;
+
+  // 3. Cari berdasarkan nomor HP
+  row = db.prepare(`SELECT * FROM peserta WHERE ${scopeWhere}no_hp = ?`).get(...[...scopeParam, kw]);
+  if (row) return row;
+
+  // 4. Cari berdasarkan nama lengkap (parsial, case-insensitive)
+  row = db.prepare(`SELECT * FROM peserta WHERE ${scopeWhere}nama_lengkap LIKE ? LIMIT 1`).get(...[...scopeParam, `%${kw}%`]);
+  if (row) return row;
+
+  return null;
 }
 
 exports.validasiPeserta = (req, res) => {
@@ -95,7 +109,7 @@ exports.tandaiHadir = (req, res) => {
 exports.daftarWalkin = (req, res) => {
   let fotoPath = null;
   try {
-    const { nama_lengkap, instansi, jabatan, no_hp, foto_base64, tipe_peserta = 'internal', nik } = req.body;
+    const { nama_lengkap, instansi, jabatan, no_hp, foto_base64, tipe_peserta = 'internal' } = req.body;
     const bersih = sanitizeInput({ nama_lengkap, instansi, jabatan }, ['nama_lengkap', 'instansi', 'jabatan']);
     if (!nama_lengkap || !instansi || !jabatan || !no_hp) {
       return res.status(400).json({ sukses: false, pesan: 'Semua field wajib diisi.', data: null });
@@ -142,10 +156,10 @@ try {
 
       db.prepare(`
         INSERT INTO peserta
-          (id, acara_id, nomor_urut, tipe_peserta, nama_lengkap, instansi, jabatan, no_hp, email, nik,
+          (id, acara_id, nomor_urut, tipe_peserta, nama_lengkap, instansi, jabatan, no_hp, email,
            foto_path, status, waktu_daftar, waktu_checkin, petugas_checkin, adalah_walkin)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
-      `).run(idBaru, targetAcaraId, nomorUrutStr, tipe_peserta, bersih.nama_lengkap, bersih.instansi, bersih.jabatan, no_hp, '', nik || null,
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+      `).run(idBaru, targetAcaraId, nomorUrutStr, tipe_peserta, bersih.nama_lengkap, bersih.instansi, bersih.jabatan, no_hp, '',
              fotoPath, STATUS_PESERTA.HADIR, waktuSekarang, waktuSekarang, req.aktor);
 
       catatAuditLog(db, req.aktor, AKSI_LOG.WALKIN, idBaru, JSON.stringify({ nama_lengkap: bersih.nama_lengkap, instansi: bersih.instansi }), targetAcaraId);

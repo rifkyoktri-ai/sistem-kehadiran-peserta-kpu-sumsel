@@ -1,5 +1,5 @@
 // =============================================================================
-// CONTROLLER PESERTA — Logika bisnis untuk endpoint publik peserta (Multi-Acara)
+// CONTROLLER PESERTA â€” Logika bisnis untuk endpoint publik peserta (Multi-Acara)
 // =============================================================================
 
 const fs = require('fs');
@@ -8,7 +8,7 @@ const { validationResult } = require('express-validator');
 const { ambilKoneksiDB } = require('../database/db');
 const { STATUS_PESERTA, AKSI_LOG, STATUS_REGISTRASI } = require('../constants');
 const { catatAuditLog } = require('../utils/auditLog');
-const { generateIdPeserta } = require('../utils/helpers');
+const { generateIdPeserta, normalizePhone } = require('../utils/helpers');
 const { saveBase64Photo, generateFilename } = require('../utils/photo');
 const { kirimEmailKonfirmasi } = require('../utils/email');
 const { sanitizeInput } = require('../utils/sanitize');
@@ -16,7 +16,10 @@ const { sanitizeInput } = require('../utils/sanitize');
 /**
  * Mengambil acara yang aktif saat ini dari database.
  */
-function ambilAcaraAktif(db) {
+function ambilAcaraAktif(db, acaraId) {
+  if (acaraId) {
+    return db.prepare("SELECT * FROM acara WHERE id = ?").get(acaraId);
+  }
   const rowActive = db.prepare("SELECT nilai FROM pengaturan_acara WHERE kunci = 'id_acara_aktif'").get();
   if (!rowActive) return null;
   return db.prepare("SELECT * FROM acara WHERE id = ?").get(rowActive.nilai);
@@ -25,13 +28,14 @@ function ambilAcaraAktif(db) {
 exports.ambilInfoAcara = (req, res) => {
   try {
     const db = ambilKoneksiDB();
-    const acara = ambilAcaraAktif(db);
+    const acaraIdDariReq = req.headers['x-acara-id'] || null;
+    const acara = ambilAcaraAktif(db, acaraIdDariReq);
     if (!acara) {
       return res.status(404).json({ sukses: false, pesan: 'Tidak ada acara yang aktif saat ini.', data: null });
     }
 
     const totalPeserta = db.prepare(
-      "SELECT COUNT(*) as total FROM peserta WHERE acara_id = ? AND status != 'membatalkan' AND status != 'digantikan' AND status != 'dihapus'"
+      "SELECT COUNT(*) as total FROM peserta WHERE acara_id = ? AND status != 'membatalkan' AND status != 'digantikan'"
     ).get(acara.id);
 
     return res.json({
@@ -69,7 +73,8 @@ exports.daftarPeserta = (req, res) => {
     }
 
     const db = ambilKoneksiDB();
-    const acara = ambilAcaraAktif(db);
+    const acaraIdDariReq = req.headers['x-acara-id'] || req.body.acara_id || null;
+    const acara = ambilAcaraAktif(db, acaraIdDariReq);
     if (!acara) {
       return res.status(404).json({ sukses: false, pesan: 'Pendaftaran ditutup karena tidak ada acara yang aktif.', data: null });
     }
@@ -90,24 +95,31 @@ exports.daftarPeserta = (req, res) => {
       }
     }
 
-    const { nama_lengkap, instansi, jabatan, no_hp, catatan = '', tipe_peserta = 'internal', foto_base64, nik } = req.body;
+    const { nama_lengkap, instansi, jabatan, no_hp, catatan = '', tipe_peserta = 'internal', foto_base64 } = req.body;
+    const noHpNormalized = normalizePhone(no_hp);
     const bersih = sanitizeInput({ nama_lengkap, instansi, jabatan, catatan }, ['nama_lengkap', 'instansi', 'jabatan', 'catatan']);
     if (!foto_base64) {
       return res.status(400).json({ sukses: false, pesan: 'Foto wajib diambil sebelum mendaftar.', data: null });
     }
 
     // Cek duplikat berdasarkan no_hp (berlaku untuk semua tipe)
-    const pesertaHpAda = db.prepare('SELECT id FROM peserta WHERE acara_id = ? AND no_hp = ?').get(acara.id, no_hp);
+    const pesertaHpAda = db.prepare('SELECT id, nama_lengkap, nomor_urut FROM peserta WHERE acara_id = ? AND no_hp = ?').get(acara.id, noHpNormalized);
     if (pesertaHpAda) {
       return res.status(409).json({
         sukses: false,
+        error: 'duplikat',
         pesan: 'Nomor HP ini sudah terdaftar untuk acara ini.',
-        data: { id_terdaftar: pesertaHpAda.id },
+        data: {
+          id_terdaftar: pesertaHpAda.id,
+          nama: pesertaHpAda.nama_lengkap,
+          nomor_urut: pesertaHpAda.nomor_urut,
+          id: pesertaHpAda.id
+        },
       });
     }
 
     const totalAktif = db.prepare(
-      "SELECT COUNT(*) as total FROM peserta WHERE acara_id = ? AND status != 'membatalkan' AND status != 'digantikan' AND status != 'dihapus'"
+      "SELECT COUNT(*) as total FROM peserta WHERE acara_id = ? AND status != 'membatalkan' AND status != 'digantikan'"
     ).get(acara.id);
 
     if (totalAktif.total >= parseInt(acara.kuota_maksimal)) {
@@ -126,7 +138,7 @@ exports.daftarPeserta = (req, res) => {
     // Transaction: generate nomor urut + INSERT + audit log (cegah race condition)
     const prosesDaftar = db.transaction(() => {
       const maxRow = db.prepare(
-        "SELECT MAX(nomor_urut) as max FROM peserta WHERE acara_id = ? AND tipe_peserta = ? AND status != 'dihapus'"
+        "SELECT MAX(nomor_urut) as max FROM peserta WHERE acara_id = ? AND tipe_peserta = ?"
       ).get(acara.id, tipe_peserta);
 
       let nextNum = 1;
@@ -144,9 +156,9 @@ exports.daftarPeserta = (req, res) => {
 
       db.prepare(`
         INSERT INTO peserta
-          (id, acara_id, nomor_urut, tipe_peserta, nama_lengkap, instansi, jabatan, no_hp, email, nik, catatan, foto_path, waktu_daftar)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(idBaru, acara.id, nomorUrut, tipe_peserta, bersih.nama_lengkap, bersih.instansi, bersih.jabatan, no_hp, '', nik || null, bersih.catatan, fotoPath, new Date().toISOString());
+          (id, acara_id, nomor_urut, tipe_peserta, nama_lengkap, instansi, jabatan, no_hp, email, catatan, foto_path, waktu_daftar)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(idBaru, acara.id, nomorUrut, tipe_peserta, bersih.nama_lengkap, bersih.instansi, bersih.jabatan, noHpNormalized, null, bersih.catatan, fotoPath, new Date().toISOString());
 
       catatAuditLog(db, 'sistem', AKSI_LOG.REGISTRASI, idBaru,
         JSON.stringify({ nama_lengkap: bersih.nama_lengkap, instansi: bersih.instansi, jabatan: bersih.jabatan, tipe_peserta }),
@@ -185,9 +197,13 @@ exports.daftarPeserta = (req, res) => {
     }
     const pesanErr = String(err.message || '');
     if (pesanErr.includes('UNIQUE constraint failed')) {
+      let fieldPesan = 'terdaftar';
+      if (pesanErr.includes('no_hp')) fieldPesan = 'Nomor HP ini sudah terdaftar.';
+      else if (pesanErr.includes('email')) fieldPesan = 'Email ini sudah terdaftar.';
+      else if (pesanErr.includes('nomor_urut')) fieldPesan = 'Terjadi konflik nomor urut. Hubungi panitia.';
       return res.status(409).json({
         sukses: false,
-        pesan: 'Data sudah terdaftar. Gunakan email atau nomor HP yang berbeda.',
+        pesan: `Data sudah ${fieldPesan} Gunakan data yang berbeda.`,
         data: null,
       });
     }
@@ -197,13 +213,14 @@ exports.daftarPeserta = (req, res) => {
 
 exports.cekStatusPeserta = (req, res) => {
   try {
-    const db = ambilKoneksiDB();
-    const acara = ambilAcaraAktif(db);
+const db = ambilKoneksiDB();
+    const acaraIdDariReq = req.headers['x-acara-id'] || null;
+    const acara = ambilAcaraAktif(db, acaraIdDariReq);
     if (!acara) {
       return res.status(404).json({ sukses: false, pesan: 'Tidak ada acara yang aktif saat ini.', data: null });
     }
 
-    const { no_hp, id_registrasi } = req.body;
+const { no_hp, id_registrasi } = req.body;
 
     if (!no_hp && !id_registrasi) {
       return res.status(400).json({
@@ -212,6 +229,8 @@ exports.cekStatusPeserta = (req, res) => {
         data: null,
       });
     }
+
+    const noHpNormalized = no_hp ? normalizePhone(no_hp) : '';
 
     let peserta = null;
     if (id_registrasi) {
@@ -228,7 +247,7 @@ exports.cekStatusPeserta = (req, res) => {
         FROM peserta p
         JOIN acara a ON p.acara_id = a.id
         WHERE p.acara_id = ? AND p.no_hp = ?
-      `).get(acara.id, no_hp);
+      `).get(acara.id, noHpNormalized);
     }
 
     if (!peserta) {
@@ -263,16 +282,37 @@ exports.infoPesertaById = (req, res) => {
   }
 };
 
-// ── Cari peserta berdasarkan nomor urut (QR) ──────────────────────────────────
+// ── Cari peserta berdasarkan nomor urut (QR) atau Nama Lengkap (Check-in manual) ──
 const cariByNomorUrut = (req, res) => {
   try {
     const { nomor_urut } = req.params;
     const db = ambilKoneksiDB();
-    const peserta = db.prepare('SELECT * FROM peserta WHERE nomor_urut = ? LIMIT 1').get(nomor_urut);
+
+    // Gunakan req.acaraId dari JWT (petugas login), fallback ke global acara aktif jika tidak ada
+    const targetAcaraId = req.acaraId || db.prepare("SELECT nilai FROM pengaturan_acara WHERE kunci = 'id_acara_aktif'").get()?.nilai;
+
+    let peserta = null;
+    const kw = nomor_urut.trim();
+
+    const scopeWhere = targetAcaraId ? 'acara_id = ? AND ' : '';
+    const scopeParam = targetAcaraId ? [targetAcaraId] : [];
+
+    // 1. Cari exact match berdasarkan ID registrasi
+    peserta = db.prepare(`SELECT * FROM peserta WHERE ${scopeWhere}id = ?`).get(...[...scopeParam, kw]);
+
+    // 2. Cari berdasarkan nomor urut (mis: KPU-0001)
+    if (!peserta) {
+      peserta = db.prepare(`SELECT * FROM peserta WHERE ${scopeWhere}UPPER(nomor_urut) = UPPER(?)`).get(...[...scopeParam, kw]);
+    }
+
+    // 3. Cari berdasarkan nama lengkap (parsial, case-insensitive)
+    if (!peserta) {
+      peserta = db.prepare(`SELECT * FROM peserta WHERE ${scopeWhere}nama_lengkap LIKE ? LIMIT 1`).get(...[...scopeParam, `%${kw}%`]);
+    }
 
     if (!peserta) {
       return res.status(404).json({
-        error: `Peserta dengan nomor ${nomor_urut} tidak ditemukan.`
+        error: `Peserta dengan kata kunci "${nomor_urut}" tidak ditemukan.`
       });
     }
 
@@ -289,9 +329,14 @@ const tandaiHadirById = (req, res) => {
     const { id } = req.params;
     const db = ambilKoneksiDB();
 
-    const peserta = db.prepare('SELECT * FROM peserta WHERE id = ?').get(id);
+    // Pastikan pencarian peserta dibatasi oleh scope acara_id dari JWT token jika ada
+    const targetAcaraId = req.acaraId || db.prepare("SELECT nilai FROM pengaturan_acara WHERE kunci = 'id_acara_aktif'").get()?.nilai;
+    const scopeWhere = targetAcaraId ? 'WHERE id = ? AND acara_id = ?' : 'WHERE id = ?';
+    const scopeParam = targetAcaraId ? [id, targetAcaraId] : [id];
+
+    const peserta = db.prepare(`SELECT * FROM peserta ${scopeWhere}`).get(...scopeParam);
     if (!peserta) {
-      return res.status(404).json({ sukses: false, pesan: 'Peserta tidak ditemukan.' });
+      return res.status(404).json({ sukses: false, pesan: 'Peserta tidak ditemukan pada sesi acara Anda.' });
     }
     if (peserta.status === STATUS_PESERTA.HADIR) {
       return res.status(409).json({ sukses: false, pesan: 'Peserta sudah hadir.', peserta });
@@ -319,6 +364,42 @@ const tandaiHadirById = (req, res) => {
   }
 };
 
+const downloadIDCardPDF = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const db = ambilKoneksiDB();
+    const peserta = db.prepare('SELECT * FROM peserta WHERE id = ?').get(id);
+    if (!peserta) {
+      return res.status(404).json({ sukses: false, pesan: 'Peserta tidak ditemukan.' });
+    }
+    const { buatPDFIDCard } = require('../utils/pdfGenerator');
+    const acara = ambilAcaraAktif(db, peserta.acara_id);
+    const pdfBuffer = await buatPDFIDCard(peserta, acara);
+
+    let nomorFormatted = peserta.id;
+    if (peserta.nomor_urut) {
+      if (String(peserta.nomor_urut).includes('-')) {
+        nomorFormatted = String(peserta.nomor_urut);
+      } else {
+        const prefix = peserta.tipe_peserta === 'internal' ? 'KPU' : 'EKS';
+        nomorFormatted = `${prefix}-${String(peserta.nomor_urut).padStart(4, '0')}`;
+      }
+    }
+    const filename = `IDCard-${nomorFormatted}.pdf`;
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    return res.send(pdfBuffer);
+  } catch (err) {
+    console.error('Error downloadIDCardPDF:', err);
+    return res.status(500).json({ sukses: false, pesan: 'Gagal membuat PDF ID Card.' });
+  }
+};
+
 module.exports.ambilAcaraAktif = ambilAcaraAktif;
 module.exports.cariByNomorUrut = cariByNomorUrut;
 module.exports.tandaiHadirById = tandaiHadirById;
+module.exports.downloadIDCardPDF = downloadIDCardPDF;
+
+
+

@@ -3,7 +3,7 @@
 // =============================================================================
 
 const { ambilKoneksiDB } = require('../database/db');
-const { STATUS_PESERTA, STATUS_DIHAPUS, AKSI_LOG } = require('../constants');
+const { STATUS_PESERTA, AKSI_LOG } = require('../constants');
 const { catatAuditLog } = require('../utils/auditLog');
 const { generateIdPeserta } = require('../utils/helpers');
 const { sanitizeInput } = require('../utils/sanitize');
@@ -30,7 +30,7 @@ exports.ambilDaftarPeserta = (req, res) => {
       return res.status(400).json({ sukses: false, pesan: 'Status tidak valid.', data: null });
     }
 
-    let query = 'SELECT * FROM peserta WHERE acara_id = ? AND (dihapus_pada IS NULL AND status != \'dihapus\')';
+    let query = 'SELECT * FROM peserta WHERE acara_id = ?';
     const params = [targetAcaraId];
 
     if (status) {
@@ -145,7 +145,7 @@ exports.gantiPeserta = (req, res) => {
     const acara = db.prepare('SELECT kode_acara FROM acara WHERE id = ?').get(pesertaLama.acara_id);
     const tipe_peserta = pesertaLama.tipe_peserta || 'internal';
     const maxRow = db.prepare(
-      'SELECT MAX(nomor_urut) as max FROM peserta WHERE acara_id = ? AND tipe_peserta = ?'
+      "SELECT MAX(nomor_urut) as max FROM peserta WHERE acara_id = ? AND tipe_peserta = ?"
     ).get(pesertaLama.acara_id, tipe_peserta);
 
     let nextNum = 1;
@@ -197,18 +197,16 @@ exports.hapusPeserta = (req, res) => {
       return res.status(404).json({ sukses: false, pesan: 'Peserta tidak ditemukan.', data: null });
     }
 
-    const waktuSekarang = new Date().toISOString();
-    db.prepare(`UPDATE peserta SET status = ?, dihapus_pada = ?, dihapus_oleh = ? WHERE id = ?`)
-      .run(STATUS_DIHAPUS, waktuSekarang, req.aktor || 'admin', req.params.id);
-
     catatAuditLog(db, req.aktor, 'HAPUS_PESERTA', req.params.id,
       JSON.stringify({ nama: peserta.nama_lengkap, alasan: req.body.alasan || '' }),
       peserta.acara_id
     );
 
+    db.prepare(`DELETE FROM peserta WHERE id = ?`).run(req.params.id);
+
     return res.json({
       sukses: true,
-      pesan: `Peserta ${peserta.nama_lengkap} (${peserta.id}) telah dihapus (soft delete).`,
+      pesan: `Peserta ${peserta.nama_lengkap} (${peserta.id}) telah dihapus permanen dari database.`,
       data: null,
     });
   } catch (err) {

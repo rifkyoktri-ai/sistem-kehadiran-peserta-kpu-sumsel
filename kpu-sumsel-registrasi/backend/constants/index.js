@@ -17,18 +17,19 @@ const STATUS_PESERTA = {
   DIGANTIKAN : 'digantikan',  // Peserta digantikan orang lain
 };
 
-// Status untuk soft delete peserta
-const STATUS_DIHAPUS = 'dihapus';
-
 // Aksi yang valid untuk kolom 'aksi' pada tabel audit_log
 const AKSI_LOG = {
-  REGISTRASI   : 'REGISTRASI',    // Peserta baru mendaftar
-  CHECKIN      : 'CHECKIN',       // Peserta melakukan check-in
-  EDIT_DATA    : 'EDIT_DATA',     // Admin mengedit data peserta
-  BATALKAN     : 'BATALKAN',      // Admin membatalkan pendaftaran
-  GANTI_PESERTA: 'GANTI_PESERTA', // Admin memproses penggantian peserta
-  CETAK_ULANG  : 'CETAK_ULANG',  // Petugas mencetak ulang ID Card
-  WALKIN       : 'WALKIN',        // Pendaftaran walk-in hari-H
+  REGISTRASI       : 'REGISTRASI',        // Peserta baru mendaftar
+  CHECKIN          : 'CHECKIN',           // Peserta melakukan check-in
+  EDIT_DATA        : 'EDIT_DATA',         // Admin mengedit data peserta
+  BATALKAN         : 'BATALKAN',          // Admin membatalkan pendaftaran
+  GANTI_PESERTA    : 'GANTI_PESERTA',     // Admin memproses penggantian peserta
+  CETAK_ULANG      : 'CETAK_ULANG',       // Petugas mencetak ulang ID Card
+  WALKIN           : 'WALKIN',            // Pendaftaran walk-in hari-H
+  TAMBAH_ACARA     : 'TAMBAH_ACARA',      // Admin membuat acara baru
+  UPDATE_PENGATURAN: 'UPDATE_PENGATURAN', // Admin mengubah pengaturan acara
+  SET_ACARA_AKTIF  : 'SET_ACARA_AKTIF',  // Admin mengaktifkan acara tertentu
+  HAPUS_ACARA      : 'HAPUS_ACARA',      // Admin menghapus acara beserta pesertanya
 };
 
 
@@ -99,7 +100,6 @@ module.exports = {
   PASSWORD_ADMIN,
   USERNAME_ADMIN,
   STATUS_PESERTA,
-  STATUS_DIHAPUS,
   AKSI_LOG,
   KUOTA_DEFAULT,
   STATUS_REGISTRASI,

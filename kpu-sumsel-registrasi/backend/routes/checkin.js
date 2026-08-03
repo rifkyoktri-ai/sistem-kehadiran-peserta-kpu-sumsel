@@ -32,8 +32,8 @@ const validasiWalkin = [
     .isString().withMessage('Jabatan harus berupa teks.')
     .isLength({ min: 2, max: 100 }).withMessage('Jabatan minimal 2 karakter, maksimal 100 karakter.'),
   body('email')
+    .optional({ checkFalsy: true })
     .trim()
-    .notEmpty().withMessage('Email wajib diisi.')
     .isEmail().withMessage('Format email tidak valid.'),
   body('no_hp')
     .trim()

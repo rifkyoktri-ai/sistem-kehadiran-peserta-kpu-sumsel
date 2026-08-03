@@ -15,10 +15,11 @@ const { ambilKoneksiDB } = require('../database/db');
  */
 function catatAuditLog(db, aktor, aksi, idPeserta, detail = '', acaraId = null) {
   if (!db) db = ambilKoneksiDB();
+  const idPesertaAman = idPeserta || '';
   db.prepare(`
     INSERT INTO audit_log (waktu, aktor, aksi, id_peserta, detail, acara_id)
     VALUES (?, ?, ?, ?, ?, ?)
-  `).run(new Date().toISOString(), aktor, aksi, idPeserta, detail, acaraId);
+  `).run(new Date().toISOString(), aktor, aksi, idPesertaAman, detail, acaraId);
 }
 
 module.exports = { catatAuditLog };

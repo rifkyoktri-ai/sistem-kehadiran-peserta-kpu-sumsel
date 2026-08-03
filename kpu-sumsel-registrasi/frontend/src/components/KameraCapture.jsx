@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 
-const KameraCapture = ({ onChange, required = true, label = "Foto Wajah", error }) => {
+const KameraCapture = ({ onChange, required = true, label = "Foto Wajah" }) => {
   const [status, setStatus] = useState('idle'); // 'idle' | 'preview' | 'captured'
   const [facingMode, setFacingMode] = useState('user');
   const [photoData, setPhotoData] = useState(null);
@@ -85,21 +85,19 @@ const KameraCapture = ({ onChange, required = true, label = "Foto Wajah", error 
     startCamera();
   };
 
-  const displayError = error || errorMsg;
-
   return (
     <div className="w-full flex flex-col gap-2">
       <label className="block text-sm font-medium text-gray-700">
         {label} {required && <span className="text-red-500">*</span>}
       </label>
 
-      {displayError && (
+      {errorMsg && (
         <div className="p-3 text-sm text-red-600 bg-red-100 rounded-md font-body font-medium">
-          {displayError}
+          {errorMsg}
         </div>
       )}
 
-      <div className={`relative w-full aspect-video bg-gray-100 rounded-lg overflow-hidden border flex items-center justify-center ${error ? 'border-red-500 ring-2 ring-red-500/20' : 'border-gray-300'}`}>
+      <div className={`relative w-full aspect-video bg-gray-100 rounded-lg overflow-hidden border flex items-center justify-center ${errorMsg ? 'border-red-500 ring-2 ring-red-500/20' : 'border-gray-300'}`}>
         {status === 'idle' && (
           <button
             type="button"

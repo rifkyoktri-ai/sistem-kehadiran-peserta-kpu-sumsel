@@ -41,7 +41,11 @@ function saveBase64Photo(base64String, filename) {
   const ext = mime === 'jpeg' ? 'jpg' : mime;
   const safeFilename = filename.replace(/\.[^/.]+$/, '') + '.' + ext;
 
-  const uploadDir = path.join(__dirname, '..', 'uploads', 'photos');
+  const IS_RENDER = process.env.RENDER === 'true';
+  const uploadDir = IS_RENDER 
+    ? path.join('/data', 'uploads', 'photos')
+    : path.join(__dirname, '..', 'uploads', 'photos');
+
   if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir, { recursive: true });
   }
@@ -49,7 +53,7 @@ function saveBase64Photo(base64String, filename) {
   const filepath = path.join(uploadDir, safeFilename);
   fs.writeFileSync(filepath, buffer);
 
-  return `uploads/photos/${safeFilename}`;
+  return IS_RENDER ? `uploads/photos/${safeFilename}` : `uploads/photos/${safeFilename}`;
 }
 
 module.exports = { saveBase64Photo, generateFilename };

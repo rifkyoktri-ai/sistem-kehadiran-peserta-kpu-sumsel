@@ -4,7 +4,8 @@
 
 const bcrypt = require('bcrypt');
 const { ambilKoneksiDB } = require('../database/db');
-const { STATUS_PESERTA } = require('../constants');
+const { STATUS_PESERTA, AKSI_LOG } = require('../constants');
+const { catatAuditLog } = require('../utils/auditLog');
 
 exports.ambilRekapAcara = (req, res) => {
   try {
@@ -29,7 +30,7 @@ exports.ambilRekapAcara = (req, res) => {
     const totalMembatalkan = hitungStatus(STATUS_PESERTA.MEMBATALKAN);
     const totalDigantikan = hitungStatus(STATUS_PESERTA.DIGANTIKAN);
     const totalWalkin = db.prepare('SELECT COUNT(*) as total FROM peserta WHERE acara_id = ? AND adalah_walkin = 1').get(targetAcaraId).total;
-    const totalSeluruh = db.prepare("SELECT COUNT(*) as total FROM peserta WHERE acara_id = ? AND status != 'dihapus'").get(targetAcaraId).total;
+    const totalSeluruh = db.prepare("SELECT COUNT(*) as total FROM peserta WHERE acara_id = ?").get(targetAcaraId).total;
     const totalAktif = totalTerdaftar + totalHadir;
 
     return res.json({
@@ -208,6 +209,10 @@ exports.updatePengaturanAcara = (req, res) => {
       if (req.body[col] !== undefined) {
         let value = String(req.body[col]);
         if (col === 'password_petugas') {
+          // Jika password kosong atau merupakan hash bcrypt lama, jangan di-update
+          if (!value || value.startsWith('$2b$')) {
+            continue;
+          }
           const strongPassword = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
           if (!strongPassword.test(value)) {
             return res.status(400).json({
@@ -232,6 +237,17 @@ exports.updatePengaturanAcara = (req, res) => {
     if (!acaraBaru) {
       return res.status(404).json({ sukses: false, pesan: 'Acara tidak ditemukan.', data: null });
     }
+
+    // Catat field apa saja yang berubah (kecuali password untuk keamanan)
+    const fieldDiubah = Object.keys(req.body).filter(k => k !== 'id_acara' && k !== 'password_petugas' && req.body[k] !== undefined);
+    catatAuditLog(
+      db,
+      req.aktor || 'admin',
+      AKSI_LOG.UPDATE_PENGATURAN,
+      null,
+      JSON.stringify({ id_acara: targetAcaraId, field_diubah: fieldDiubah }),
+      targetAcaraId
+    );
 
     return res.json({
       sukses: true,
@@ -314,6 +330,15 @@ exports.tambahAcara = (req, res) => {
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'buka', ?, ?)
     `).run(idAcara, cleanCode, nama_acara, tanggal_acara, waktu_acara, lokasi_acara, kuota, deadline_registrasi || '', hashedPassword, waktuDibuat);
 
+    catatAuditLog(
+      db,
+      req.aktor || 'admin',
+      AKSI_LOG.TAMBAH_ACARA,
+      null,
+      JSON.stringify({ id_acara: idAcara, kode_acara: cleanCode, nama_acara }),
+      idAcara
+    );
+
     return res.status(201).json({
       sukses: true,
       pesan: `Acara "${nama_acara}" berhasil dibuat.`,
@@ -332,13 +357,22 @@ exports.setAcaraAktif = (req, res) => {
 
   try {
     const db = ambilKoneksiDB();
-    const ada = db.prepare('SELECT id FROM acara WHERE id = ?').get(id_acara);
+    const ada = db.prepare('SELECT id, nama_acara FROM acara WHERE id = ?').get(id_acara);
     if (!ada) {
       return res.status(404).json({ sukses: false, pesan: 'Acara tidak ditemukan.', data: null });
     }
 
     db.prepare("INSERT OR REPLACE INTO pengaturan_acara (kunci, nilai) VALUES ('id_acara_aktif', ?)")
       .run(id_acara);
+
+    catatAuditLog(
+      db,
+      req.aktor || 'admin',
+      AKSI_LOG.SET_ACARA_AKTIF,
+      null,
+      JSON.stringify({ id_acara, nama_acara: ada.nama_acara }),
+      id_acara
+    );
 
     return res.json({ sukses: true, pesan: 'Acara aktif berhasil diubah.', data: { id_acara_aktif: id_acara } });
   } catch (err) {
@@ -351,6 +385,59 @@ exports.resetAuditLog = (req, res) => {
     const db = ambilKoneksiDB();
     db.prepare('DELETE FROM audit_log').run();
     return res.json({ sukses: true, pesan: 'Seluruh audit log berhasil dihapus.', data: null });
+  } catch (err) {
+    return res.status(500).json({ sukses: false, pesan: 'Terjadi kesalahan internal server.', data: null });
+  }
+};
+
+exports.hapusAcara = (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const db = ambilKoneksiDB();
+
+    // 1. Cek apakah acara ada
+    const acara = db.prepare('SELECT * FROM acara WHERE id = ?').get(id);
+    if (!acara) {
+      return res.status(404).json({ sukses: false, pesan: 'Acara tidak ditemukan.', data: null });
+    }
+
+    // 2. Cek apakah ini acara aktif
+    const activeRow = db.prepare("SELECT nilai FROM pengaturan_acara WHERE kunci = 'id_acara_aktif'").get();
+    const idAcaraAktif = activeRow ? activeRow.nilai : null;
+    if (id === idAcaraAktif) {
+      return res.status(400).json({ sukses: false, pesan: 'Acara aktif tidak boleh dihapus. Silakan ganti acara aktif terlebih dahulu.', data: null });
+    }
+
+    // 3. Eksekusi hapus relasi dalam transaksi database
+    const hapusTransaksi = db.transaction(() => {
+      // Hapus data peserta acara tersebut
+      db.prepare('DELETE FROM peserta WHERE acara_id = ?').run(id);
+      
+      // Hapus audit log terkait acara tersebut
+      db.prepare('DELETE FROM audit_log WHERE acara_id = ?').run(id);
+
+      // Hapus acaranya
+      db.prepare('DELETE FROM acara WHERE id = ?').run(id);
+
+      // Catat penghapusan ke audit log global (tidak terikat acara_id yang dihapus)
+      catatAuditLog(
+        db,
+        req.aktor || 'admin',
+        AKSI_LOG.HAPUS_ACARA,
+        null,
+        JSON.stringify({ id_acara: id, nama_acara: acara.nama_acara, kode_acara: acara.kode_acara }),
+        null
+      );
+    });
+
+    hapusTransaksi();
+
+    return res.json({
+      sukses: true,
+      pesan: `Acara "${acara.nama_acara}" dan seluruh data terkait berhasil dihapus permanen.`,
+      data: null
+    });
   } catch (err) {
     return res.status(500).json({ sukses: false, pesan: 'Terjadi kesalahan internal server.', data: null });
   }

@@ -21,7 +21,6 @@ export default function Registrasi() {
     nama_lengkap: '',
     instansi: '',
     jabatan: '',
-    jabatan: '',
     no_hp: '',
     catatan: '',
   });
@@ -76,21 +75,25 @@ export default function Registrasi() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setErrorMsg('');
+    setDuplicateId('');
     const err = validasiInput();
     if (err) { setErrorMsg(err); return; }
     if (!fotoBase64) {
       setErrorMsg('Foto wajib diambil sebelum mendaftar.');
       return;
     }
+    if (!pdpChecked) {
+      setErrorMsg('Anda harus menyetujui penggunaan data pribadi terlebih dahulu.');
+      return;
+    }
     setSubmitting(true);
-    setErrorMsg('');
-    setDuplicateId('');
     try {
       const payload = { ...form, instansi: instansiFinal, tipe_peserta: tipePeserta, foto_base64: fotoBase64 };
       const res = await fetch(`${API_BASE_URL}/peserta/daftar`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        headers: { 'Content-Type': 'application/json', 'x-acara-id': acara?.id || '' },
+        body: JSON.stringify({ ...payload, acara_id: acara?.id || '' }),
       });
       const resJson = await res.json();
       if (res.status === 409 && resJson.error === 'duplikat') {
@@ -103,6 +106,12 @@ export default function Registrasi() {
       } else if (res.status === 409 && resJson.data?.id_terdaftar) {
         setDuplicateId(resJson.data.id_terdaftar);
         setErrorMsg('Nomor HP ini sudah terdaftar untuk acara ini.');
+      } else if (res.status === 409) {
+        setErrorMsg(resJson.pesan || 'Data sudah terdaftar.');
+      } else if (res.status === 403) {
+        setErrorMsg(resJson.pesan || 'Pendaftaran tidak diizinkan.');
+      } else if (res.status === 400) {
+        setErrorMsg(resJson.pesan || 'Data tidak valid. Periksa kembali isian form.');
       } else if (!resJson.sukses) {
         if (resJson.detail) console.error('[REG ERROR]', resJson.detail);
         setErrorMsg(resJson.pesan || 'Gagal mendaftar. Silakan coba lagi.');
@@ -402,7 +411,6 @@ export default function Registrasi() {
                   <KameraCapture
                     label="Foto Selfie Wajah"
                     required={true}
-                    error={errorMsg}
                     onChange={(base64) => setFotoBase64(base64)}
                   />
 

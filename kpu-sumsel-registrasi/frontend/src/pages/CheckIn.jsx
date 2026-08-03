@@ -249,7 +249,7 @@ function CariTab({ password, acaraId }) {
 
         <div className="flex flex-col md:flex-row gap-4">
           <input
-            type="text" placeholder="Ketik nama atau ID registrasi..."
+            type="text" placeholder="Ketik nama, nomor urut (KPU-0001), No. HP, atau ID registrasi..."
             value={keyword} onChange={(e) => setKeyword(e.target.value)}
             onKeyDown={handleKey}
             className="input-kpu flex-1"

@@ -125,8 +125,16 @@ app.use((req, res, next) => {
   next();
 });
 
-// Serve file statis (foto upload)
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// Serve file statis (foto upload) dengan CORS header agar bisa diakses oleh frontend saat cetak PDF
+const staticUploadsDir = process.env.RENDER === 'true' 
+  ? '/data/uploads'
+  : path.join(__dirname, 'uploads');
+
+app.use('/uploads', (req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  next();
+}, express.static(staticUploadsDir));
 
 // Mount routes
 app.use('/api', routerPeserta);
