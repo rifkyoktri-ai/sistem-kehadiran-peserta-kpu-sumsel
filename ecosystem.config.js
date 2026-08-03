@@ -2,7 +2,7 @@ module.exports = {
   apps: [
     {
       name: 'kpu-sumsel-backend',
-      script: './backend/server.js',
+      script: './kpu-sumsel-registrasi/backend/server.js',
       cwd: './',
       instances: 'max',
       exec_mode: 'cluster',
