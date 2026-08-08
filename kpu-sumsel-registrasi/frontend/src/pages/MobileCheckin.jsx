@@ -676,7 +676,7 @@ const MobileCheckin = () => {
                   }}>
                     {peserta.foto_path ? (
                       <img
-                        src={`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001'}/${peserta.foto_path}`}
+                        src={`${import.meta.env.VITE_API_BASE_URL || ''}/${peserta.foto_path}`}
                         alt="Foto"
                         style={{width:'100%',height:'100%',objectFit:'cover'}}
                         crossOrigin="anonymous"

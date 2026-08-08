@@ -69,6 +69,16 @@ const allowedOrigins = process.env.CORS_ORIGINS
   ? process.env.CORS_ORIGINS.split(',').map(o => o.trim()).filter(Boolean)
   : ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:3000'];
 
+// Single-port deploy: izinkan selalu origin yang sama dengan Host request,
+// apa pun IP/host yang dipakai browser (localhost, IP LAN, IP publik).
+app.use((req, res, next) => {
+  const host = req.get('host');
+  if (host && allowedOrigins.indexOf(`http://${host}`) === -1) {
+    allowedOrigins.push(`http://${host}`);
+  }
+  next();
+});
+
 app.use(cors({
   origin: function (origin, callback) {
     // Izinkan request tanpa origin (curl, Postman, mobile app)
@@ -141,6 +151,16 @@ app.use('/api', routerPeserta);
 app.use('/api/checkin', routerCheckin);
 app.use('/api/admin', routerAdmin);
 app.use('/api', routerUpload);
+
+// ── Static frontend (single-port deploy: API + UI pada port yang sama) ─────
+const distPath = process.env.FRONTEND_DIST || path.join(__dirname, '..', 'frontend', 'dist');
+app.use(express.static(distPath));
+
+// SPA fallback – semua jalur non-API diarahkan ke index.html agar
+// React Router (history) berjalan saat di-serve langsung oleh Express.
+app.get(/^(?!\/api|\/uploads).*/, (req, res) => {
+  res.sendFile(path.join(distPath, 'index.html'));
+});
 
 // ── Health check (informatif) ───────────────────────────────────────────────
 app.get('/api/ping', (req, res) => {
