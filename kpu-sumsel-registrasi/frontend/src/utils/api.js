@@ -1,4 +1,4 @@
-import { AUTH_HEADER } from '@/constants/auth';
+
 
 export const getAuthHeader = (password, extra = {}) => {
   const base = password && password.startsWith('eyJ')

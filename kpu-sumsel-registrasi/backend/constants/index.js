@@ -32,7 +32,6 @@ const AKSI_LOG = {
   HAPUS_ACARA      : 'HAPUS_ACARA',      // Admin menghapus acara beserta pesertanya
 };
 
-
 // Kuota default peserta maksimal
 const KUOTA_DEFAULT = 500;
 
@@ -79,21 +78,8 @@ const VALID_INSTANSI_EKSTERNAL = [
   "Lainnya",
 ];
 
-const VALID_JABATAN = [];
-const VALID_JABATAN_EKSTERNAL = [];
-
 // Gabungan semua instansi yang valid (internal + eksternal)
 const VALID_INSTANSI_ALL = [...VALID_INSTANSI, ...VALID_INSTANSI_EKSTERNAL];
-// Jabatan diketik bebas — tidak perlu list validasi
-const VALID_JABATAN_ALL = [];
-
-// SMTP — konfigurasi email notifikasi
-const SMTP_HOST   = process.env.SMTP_HOST   || 'smtp.gmail.com';
-const SMTP_PORT   = parseInt(process.env.SMTP_PORT || '465', 10);
-const SMTP_SECURE = process.env.SMTP_SECURE !== 'false';
-const SMTP_USER   = process.env.SMTP_USER   || '';
-const SMTP_PASS   = process.env.SMTP_PASS   || '';
-const EMAIL_FROM  = process.env.EMAIL_FROM  || 'KPU Sumsel <noreply@kpu-sumsel.go.id>';
 
 module.exports = {
   PASSWORD_PETUGAS,
@@ -109,13 +95,4 @@ module.exports = {
   VALID_INSTANSI,
   VALID_INSTANSI_EKSTERNAL,
   VALID_INSTANSI_ALL,
-  VALID_JABATAN,
-  VALID_JABATAN_EKSTERNAL,
-  VALID_JABATAN_ALL,
-  SMTP_HOST,
-  SMTP_PORT,
-  SMTP_SECURE,
-  SMTP_USER,
-  SMTP_PASS,
-  EMAIL_FROM,
 };

@@ -3,7 +3,6 @@
 // =============================================================================
 
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { AppProvider } from './context/AppContext';
 import { AuthProvider } from './context/AuthContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import Registrasi from './pages/Registrasi';
@@ -28,22 +27,20 @@ function NotFound() {
 
 export default function App() {
   return (
-    <AppProvider>
-      <AuthProvider>
-        <ErrorBoundary>
-          <BrowserRouter>
-            <Routes>
-              <Route path="/"                  element={<Registrasi />} />
-              <Route path="/konfirmasi/:id"     element={<Konfirmasi />} />
-              <Route path="/cek-status"        element={<CekStatus />} />
-              <Route path="/checkin"           element={<CheckIn />} />
-              <Route path="/admin"             element={<Admin />} />
-              <Route path="/mobile-checkin"    element={<MobileCheckin />} />
-              <Route path="*"                  element={<NotFound />} />
-            </Routes>
-          </BrowserRouter>
-        </ErrorBoundary>
-      </AuthProvider>
-    </AppProvider>
+    <AuthProvider>
+      <ErrorBoundary>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/"                  element={<Registrasi />} />
+            <Route path="/konfirmasi/:id"     element={<Konfirmasi />} />
+            <Route path="/cek-status"        element={<CekStatus />} />
+            <Route path="/checkin"           element={<CheckIn />} />
+            <Route path="/admin"             element={<Admin />} />
+            <Route path="/mobile-checkin"    element={<MobileCheckin />} />
+            <Route path="*"                  element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </ErrorBoundary>
+    </AuthProvider>
   );
 }

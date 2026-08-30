@@ -52,6 +52,50 @@ exports.ambilRekapAcara = (req, res) => {
   }
 };
 
+// Helper: format timestamp ISO → "29 Agustus 2026 14.51 WIB"
+function formatWaktuWIB(isoStr) {
+  if (!isoStr) return '';
+  const d = new Date(isoStr);
+  const bulan = ['Januari','Februari','Maret','April','Mei','Juni',
+                 'Juli','Agustus','September','Oktober','November','Desember'];
+  const jam   = String(d.getHours()).padStart(2, '0');
+  const menit = String(d.getMinutes()).padStart(2, '0');
+  return `${d.getDate()} ${bulan[d.getMonth()]} ${d.getFullYear()} ${jam}.${menit} WIB`;
+}
+
+// Helper: format nomor HP → "0812-3456-7890"
+function formatHP(hp) {
+  if (!hp) return '';
+  let s = String(hp).replace(/\D/g, '');
+  if (s.startsWith('62')) s = '0' + s.slice(2);
+  if (s.length >= 10) {
+    return s.slice(0,4) + '-' + s.slice(4,8) + '-' + s.slice(8);
+  }
+  return s;
+}
+
+// Helper: RFC-4180 CSV escape dengan separator titik koma
+function csvEscape(val) {
+  const s = val === null || val === undefined ? '' : String(val);
+  if (s.includes(';') || s.includes('"') || s.includes('\n')) {
+    return '"' + s.replace(/"/g, '""') + '"';
+  }
+  return s;
+}
+
+const LABEL_STATUS = {
+  hadir: 'HADIR',
+  terdaftar: 'BELUM HADIR',
+  membatalkan: 'MEMBATALKAN',
+  digantikan: 'DIGANTIKAN',
+};
+
+const LABEL_KATEGORI = {
+  internal_kpu: 'Internal KPU',
+  eksternal: 'Eksternal Resmi',
+  lainnya: 'Instansi Lainnya',
+};
+
 exports.exportCSV = (req, res) => {
   try {
     const db = ambilKoneksiDB();
@@ -67,29 +111,70 @@ exports.exportCSV = (req, res) => {
       return res.status(400).json({ sukses: false, pesan: 'ID acara tidak ditentukan.', data: null });
     }
 
-    const semua = db.prepare('SELECT * FROM peserta WHERE acara_id = ? ORDER BY nomor_urut ASC').all(targetAcaraId);
-    const header = 'No.|ID Registrasi|Nama Lengkap|Instansi|Jabatan|No. HP|Status|Waktu Daftar|Waktu Check-in|Keterangan';
-
-    const baris = semua.map((p) => [
-      p.nomor_urut,
-      p.id,
-      `"${p.nama_lengkap}"`,
-      `"${p.instansi}"`,
-      `"${p.jabatan}"`,
-
-      p.no_hp,
-      p.status,
-      p.waktu_daftar,
-      p.waktu_checkin || '',
-      p.adalah_walkin ? 'Walk-in' : '',
-    ].join('|'));
-
+    const semua = db.prepare("SELECT *, COALESCE(kategori_instansi, 'lainnya') as kategori_instansi FROM peserta WHERE acara_id = ? ORDER BY nomor_urut ASC").all(targetAcaraId);
     const acara = db.prepare('SELECT * FROM acara WHERE id = ?').get(targetAcaraId);
-    const namaAcara = (acara ? acara.nama_acara : 'acara').replace(/[^a-zA-Z0-9]/g, '_').substring(0, 30);
-    const tanggal = new Date().toISOString().slice(0, 10);
-    const namaFile = `peserta_${namaAcara}_${tanggal}.csv`;
+    
+    const sekarang = new Date();
+    const waktuEkspor = formatWaktuWIB(sekarang.toISOString());
+    const namaAcara = (acara ? acara.nama_acara : 'acara');
+    const namaAcaraClean = namaAcara.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 30);
+    const tanggal = sekarang.toISOString().slice(0, 10);
+    const namaFile = `peserta_${namaAcaraClean}_${tanggal}.csv`;
 
-    const isiCSV = [header, ...baris].join('\n');
+    // Header identitas dokumen (3 baris)
+    const identitas = [
+      `Data Peserta Kegiatan - ${namaAcara}`,
+      `Diekspor pada: ${waktuEkspor}  |  Total Peserta: ${semua.length} orang`,
+      '', // baris kosong
+    ];
+
+    const SEP = ';';
+    const header = [
+      'No.',
+      'ID Registrasi',
+      'Nama Lengkap',
+      'Jabatan',
+      'Instansi / Unit Kerja',
+      'Tipe Peserta',
+      'No. HP',
+      'Status Kehadiran',
+      'Walk-In',
+      'Waktu Pendaftaran',
+      'Waktu Hadir',
+      'Catatan Peserta',
+      'Keterangan Kehadiran'
+    ].join(SEP);
+
+    const baris = semua.map((p) => {
+      let nomorReg = '';
+      if (p.nomor_urut) {
+        nomorReg = String(p.nomor_urut).includes('-') ? p.nomor_urut
+          : `${p.tipe_peserta === 'internal' ? 'KPU' : 'EKS'}-${String(p.nomor_urut).padStart(4, '0')}`;
+      }
+
+      // Keterangan Kehadiran spesifik
+      const keteranganKehadiran = p.adalah_walkin 
+        ? 'Registrasi di lokasi acara' 
+        : '-';
+
+      return [
+        csvEscape(p.nomor_urut),
+        csvEscape(nomorReg || p.id),
+        csvEscape(p.nama_lengkap),
+        csvEscape(p.jabatan),
+        csvEscape(p.instansi),
+        csvEscape(LABEL_KATEGORI[p.kategori_instansi] || p.kategori_instansi),
+        csvEscape(formatHP(p.no_hp)),
+        csvEscape(LABEL_STATUS[p.status] || p.status),
+        p.adalah_walkin ? 'Ya' : 'Tidak',
+        csvEscape(formatWaktuWIB(p.waktu_daftar)),
+        csvEscape(formatWaktuWIB(p.waktu_checkin)),
+        csvEscape(p.catatan || '-'),
+        csvEscape(keteranganKehadiran),
+      ].join(SEP);
+    });
+
+    const isiCSV = [...identitas, header, ...baris].join('\n');
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="${namaFile}"`);
     return res.send('\uFEFF' + isiCSV);

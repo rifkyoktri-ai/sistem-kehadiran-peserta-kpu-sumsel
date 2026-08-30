@@ -5,10 +5,10 @@
 const fs = require('fs');
 const path = require('path');
 const { validationResult } = require('express-validator');
-const { ambilKoneksiDB } = require('../database/db');
+const { ambilKoneksiDB, simpanKeDisk } = require('../database/db');
 const { STATUS_PESERTA, AKSI_LOG, STATUS_REGISTRASI } = require('../constants');
 const { catatAuditLog } = require('../utils/auditLog');
-const { generateIdPeserta, normalizePhone } = require('../utils/helpers');
+const { generateIdPeserta, normalizePhone, getWaktuWIB } = require('../utils/helpers');
 const { saveBase64Photo, generateFilename } = require('../utils/photo');
 const { kirimEmailKonfirmasi } = require('../utils/email');
 const { sanitizeInput } = require('../utils/sanitize');
@@ -25,6 +25,8 @@ function ambilAcaraAktif(db, acaraId) {
   return db.prepare("SELECT * FROM acara WHERE id = ?").get(rowActive.nilai);
 }
 
+// ... helper method placeholder ...
+
 exports.ambilInfoAcara = (req, res) => {
   try {
     const db = ambilKoneksiDB();
@@ -40,7 +42,7 @@ exports.ambilInfoAcara = (req, res) => {
 
     return res.json({
       sukses: true,
-      pesan: 'Info acara aktif berhasil diambil.',
+      pesan: 'Info acara aktif berhasil bagian diambil.',
       data: {
         id: acara.id,
         kode_acara: acara.kode_acara,
@@ -153,12 +155,27 @@ exports.daftarPeserta = (req, res) => {
       const prefix = tipe_peserta === 'internal' ? 'KPU' : 'EKS';
       const nomorUrut = `${prefix}-${String(nextNum).padStart(4, '0')}`;
       const idBaru = generateIdPeserta(nextNum, acara.kode_acara, tipe_peserta);
+      const { menentukanKategoriInstansi } = require('../utils/helpers');
+      const kategoriInstansi = menentukanKategoriInstansi(bersih.instansi);
+      const waktuDaftar = getWaktuWIB();
 
-      db.prepare(`
+      // INSERT bersyarat menggunakan subquery di klausa SELECT ... WHERE untuk perlindungan atomik konkurensi kuota
+      const result = db.prepare(`
         INSERT INTO peserta
-          (id, acara_id, nomor_urut, tipe_peserta, nama_lengkap, instansi, jabatan, no_hp, email, catatan, foto_path, waktu_daftar)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(idBaru, acara.id, nomorUrut, tipe_peserta, bersih.nama_lengkap, bersih.instansi, bersih.jabatan, noHpNormalized, null, bersih.catatan, fotoPath, new Date().toISOString());
+          (id, acara_id, nomor_urut, tipe_peserta, nama_lengkap, instansi, kategori_instansi, jabatan, no_hp, email, catatan, foto_path, waktu_daftar)
+        SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+        WHERE (
+          SELECT COUNT(*) FROM peserta 
+          WHERE acara_id = ? AND status != 'membatalkan' AND status != 'digantikan'
+        ) < ?
+      `).run(
+        idBaru, acara.id, nomorUrut, tipe_peserta, bersih.nama_lengkap, bersih.instansi, kategoriInstansi, bersih.jabatan, noHpNormalized, null, bersih.catatan, fotoPath, waktuDaftar,
+        acara.id, parseInt(acara.kuota_maksimal)
+      );
+
+      if (result.changes === 0) {
+        throw new Error('Kuota penuh');
+      }
 
       catatAuditLog(db, 'sistem', AKSI_LOG.REGISTRASI, idBaru,
         JSON.stringify({ nama_lengkap: bersih.nama_lengkap, instansi: bersih.instansi, jabatan: bersih.jabatan, tipe_peserta }),
@@ -169,6 +186,7 @@ exports.daftarPeserta = (req, res) => {
     });
 
     const idBaru = prosesDaftar();
+    simpanKeDisk();
 
     // Ambil data peserta beserta info acara pendukung
     const dataBaru = db.prepare(`
@@ -196,6 +214,9 @@ exports.daftarPeserta = (req, res) => {
       try { fs.unlinkSync(path.join(__dirname, '..', fotoPath)); } catch (_) {}
     }
     const pesanErr = String(err.message || '');
+    if (pesanErr === 'Kuota penuh') {
+      return res.status(409).json({ sukses: false, pesan: 'Kuota pendaftaran sudah penuh.', data: null });
+    }
     if (pesanErr.includes('UNIQUE constraint failed')) {
       let fieldPesan = 'terdaftar';
       if (pesanErr.includes('no_hp')) fieldPesan = 'Nomor HP ini sudah terdaftar.';
@@ -338,24 +359,33 @@ const tandaiHadirById = (req, res) => {
     if (!peserta) {
       return res.status(404).json({ sukses: false, pesan: 'Peserta tidak ditemukan pada sesi acara Anda.' });
     }
-    if (peserta.status === STATUS_PESERTA.HADIR) {
-      return res.status(409).json({ sukses: false, pesan: 'Peserta sudah hadir.', peserta });
-    }
-    if (peserta.status === STATUS_PESERTA.MEMBATALKAN) {
-      return res.status(409).json({ sukses: false, pesan: 'Peserta telah membatalkan kehadiran.', peserta });
-    }
-    if (peserta.status === STATUS_PESERTA.DIGANTIKAN) {
-      return res.status(409).json({ sukses: false, pesan: 'Peserta ini sudah digantikan.', peserta });
-    }
 
-    const waktuCheckin = new Date().toISOString();
-    db.prepare(
-      "UPDATE peserta SET status = ?, waktu_checkin = ?, petugas_checkin = ? WHERE id = ?"
-    ).run(STATUS_PESERTA.HADIR, waktuCheckin, req.aktor || 'petugas', id);
+    const waktuCheckin = getWaktuWIB();
+
+    // Atomic Update: update hanya jika status saat ini adalah 'terdaftar'
+    const result = db.prepare(
+      "UPDATE peserta SET status = ?, waktu_checkin = ?, petugas_checkin = ? WHERE id = ? AND status = ?"
+    ).run(STATUS_PESERTA.HADIR, waktuCheckin, req.aktor || 'petugas', id, STATUS_PESERTA.TERDAFTAR);
+
+    if (result.changes === 0) {
+      const pesertaTerkini = db.prepare('SELECT status FROM peserta WHERE id = ?').get(id);
+      let pesanError = 'Peserta sudah tercatat hadir atau status tidak valid.';
+      if (pesertaTerkini) {
+        if (pesertaTerkini.status === STATUS_PESERTA.HADIR) {
+          pesanError = 'Peserta sudah hadir.';
+        } else if (pesertaTerkini.status === STATUS_PESERTA.MEMBATALKAN) {
+          pesanError = 'Peserta telah membatalkan kehadiran.';
+        } else if (pesertaTerkini.status === STATUS_PESERTA.DIGANTIKAN) {
+          pesanError = 'Peserta ini sudah digantikan.';
+        }
+      }
+      return res.status(409).json({ sukses: false, pesan: pesanError, peserta });
+    }
 
     catatAuditLog(db, req.aktor || 'petugas', AKSI_LOG.CHECKIN, id,
       JSON.stringify({ waktu_checkin: waktuCheckin }), peserta.acara_id
     );
+    simpanKeDisk();
 
     const updated = db.prepare('SELECT * FROM peserta WHERE id = ?').get(id);
     return res.json({ sukses: true, pesan: 'Check-in berhasil.', peserta: updated });

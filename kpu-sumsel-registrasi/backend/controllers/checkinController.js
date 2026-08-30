@@ -4,10 +4,10 @@
 
 const fs = require('fs');
 const path = require('path');
-const { ambilKoneksiDB } = require('../database/db');
+const { ambilKoneksiDB, simpanKeDisk } = require('../database/db');
 const { STATUS_PESERTA, AKSI_LOG } = require('../constants');
 const { catatAuditLog } = require('../utils/auditLog');
-const { generateIdPeserta } = require('../utils/helpers');
+const { generateIdPeserta, getWaktuWIB } = require('../utils/helpers');
 const { saveBase64Photo, generateFilename } = require('../utils/photo');
 const logger = require('../utils/logger');
 const { sanitizeInput } = require('../utils/sanitize');
@@ -78,22 +78,33 @@ exports.tandaiHadir = (req, res) => {
       return res.status(404).json({ sukses: false, pesan: 'Peserta tidak ditemukan.', data: null });
     }
 
-    if (peserta.status === STATUS_PESERTA.HADIR) {
-      return res.status(409).json({ sukses: false, pesan: 'Peserta ini sudah melakukan check-in.', data: peserta });
-    }
-    if (peserta.status === STATUS_PESERTA.MEMBATALKAN) {
-      return res.status(409).json({ sukses: false, pesan: 'Peserta telah membatalkan kehadiran.', data: peserta });
-    }
-    if (peserta.status === STATUS_PESERTA.DIGANTIKAN) {
-      return res.status(409).json({ sukses: false, pesan: 'Peserta ini sudah digantikan.', data: peserta });
-    }
+    const waktuCheckin = getWaktuWIB();
 
-    const waktuCheckin = new Date().toISOString();
-    db.prepare(`
-      UPDATE peserta SET status = ?, waktu_checkin = ?, petugas_checkin = ? WHERE id = ?
-    `).run(STATUS_PESERTA.HADIR, waktuCheckin, req.aktor, peserta.id);
+    // Atomic Update: Update hanya jika status saat ini adalah 'terdaftar'
+    const result = db.prepare(`
+      UPDATE peserta 
+      SET status = ?, waktu_checkin = ?, petugas_checkin = ? 
+      WHERE id = ? AND status = ?
+    `).run(STATUS_PESERTA.HADIR, waktuCheckin, req.aktor, peserta.id, STATUS_PESERTA.TERDAFTAR);
+
+    if (result.changes === 0) {
+      // Dapatkan data terkini untuk memberikan pesan yang akurat
+      const pesertaTerkini = db.prepare('SELECT status FROM peserta WHERE id = ?').get(peserta.id);
+      let pesanError = 'Peserta sudah tercatat hadir atau status tidak valid.';
+      if (pesertaTerkini) {
+        if (pesertaTerkini.status === STATUS_PESERTA.HADIR) {
+          pesanError = 'Peserta ini sudah melakukan check-in.';
+        } else if (pesertaTerkini.status === STATUS_PESERTA.MEMBATALKAN) {
+          pesanError = 'Peserta telah membatalkan kehadiran.';
+        } else if (pesertaTerkini.status === STATUS_PESERTA.DIGANTIKAN) {
+          pesanError = 'Peserta ini sudah digantikan.';
+        }
+      }
+      return res.status(409).json({ sukses: false, pesan: pesanError, data: peserta });
+    }
 
     catatAuditLog(db, req.aktor, AKSI_LOG.CHECKIN, peserta.id, JSON.stringify({ waktu_checkin: waktuCheckin }), targetAcaraId);
+    simpanKeDisk();
 
     return res.json({
       sukses: true,
@@ -129,7 +140,7 @@ exports.daftarWalkin = (req, res) => {
       return res.status(404).json({ sukses: false, pesan: 'Acara tidak ditemukan.', data: null });
     }
 
-try {
+    try {
       fotoPath = saveBase64Photo(foto_base64, generateFilename());
     } catch (err) {
       return res.status(400).json({ sukses: false, pesan: err.message, data: null });
@@ -152,14 +163,16 @@ try {
       const prefix = tipe_peserta === 'internal' ? 'KPU' : 'EKS';
       const nomorUrutStr = `${prefix}-${String(nextNum).padStart(4, '0')}`;
       const idBaru = generateIdPeserta(nextNum, acara.kode_acara, tipe_peserta);
-      const waktuSekarang = new Date().toISOString();
+      const waktuSekarang = getWaktuWIB();
+      const { menentukanKategoriInstansi } = require('../utils/helpers');
+      const kategoriInstansi = menentukanKategoriInstansi(bersih.instansi);
 
       db.prepare(`
         INSERT INTO peserta
-          (id, acara_id, nomor_urut, tipe_peserta, nama_lengkap, instansi, jabatan, no_hp, email,
+          (id, acara_id, nomor_urut, tipe_peserta, nama_lengkap, instansi, kategori_instansi, jabatan, no_hp, email,
            foto_path, status, waktu_daftar, waktu_checkin, petugas_checkin, adalah_walkin)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
-      `).run(idBaru, targetAcaraId, nomorUrutStr, tipe_peserta, bersih.nama_lengkap, bersih.instansi, bersih.jabatan, no_hp, '',
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+      `).run(idBaru, targetAcaraId, nomorUrutStr, tipe_peserta, bersih.nama_lengkap, bersih.instansi, kategoriInstansi, bersih.jabatan, no_hp, '',
              fotoPath, STATUS_PESERTA.HADIR, waktuSekarang, waktuSekarang, req.aktor);
 
       catatAuditLog(db, req.aktor, AKSI_LOG.WALKIN, idBaru, JSON.stringify({ nama_lengkap: bersih.nama_lengkap, instansi: bersih.instansi }), targetAcaraId);
@@ -168,6 +181,7 @@ try {
     });
 
     const idBaru = prosesWalkIn();
+    simpanKeDisk();
     return res.status(201).json({
       sukses: true,
       pesan: `Walk-in berhasil. ${bersih.nama_lengkap} telah terdaftar dan check-in.`,

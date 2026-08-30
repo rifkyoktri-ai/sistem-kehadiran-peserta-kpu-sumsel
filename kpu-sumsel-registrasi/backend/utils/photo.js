@@ -53,7 +53,7 @@ function saveBase64Photo(base64String, filename) {
   const filepath = path.join(uploadDir, safeFilename);
   fs.writeFileSync(filepath, buffer);
 
-  return IS_RENDER ? `uploads/photos/${safeFilename}` : `uploads/photos/${safeFilename}`;
+  return `uploads/photos/${safeFilename}`;
 }
 
 module.exports = { saveBase64Photo, generateFilename };

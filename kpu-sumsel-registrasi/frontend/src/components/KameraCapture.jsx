@@ -55,8 +55,19 @@ const KameraCapture = ({ onChange, required = true, label = "Foto Wajah" }) => {
 
     if (video.videoWidth === 0 || video.videoHeight === 0) return;
 
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    // Kompresi resolusi: Scale lebar maksimum ke 640px dengan aspek rasio tetap
+    const maxWidth = 640;
+    let targetWidth = video.videoWidth;
+    let targetHeight = video.videoHeight;
+    
+    if (targetWidth > maxWidth) {
+      const rasio = maxWidth / targetWidth;
+      targetWidth = maxWidth;
+      targetHeight = targetHeight * rasio;
+    }
+
+    canvas.width = targetWidth;
+    canvas.height = targetHeight;
     const ctx = canvas.getContext('2d');
 
     // Jika kamera depan, flip horizontal agar tidak terbalik (mirror) saat dirender ke canvas
@@ -66,7 +77,7 @@ const KameraCapture = ({ onChange, required = true, label = "Foto Wajah" }) => {
     }
 
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const base64Image = canvas.toDataURL('image/jpeg', 0.9);
+    const base64Image = canvas.toDataURL('image/jpeg', 0.8);
 
     setPhotoData(base64Image);
     setStatus('captured');

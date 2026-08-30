@@ -109,6 +109,18 @@ function Dashboard({ password, onLogout }) {
   const [tanggalHariIni, setTanggalHariIni] = useState('');
   const [resetConfirm, setResetConfirm] = useState(false);
 
+  // State fitur PDF Laporan Kehadiran
+  const [modalPDF, setModalPDF] = useState(false);
+  const [jenisPDF, setJenisPDF] = useState('daftar-hadir');
+  const [loadingPDF, setLoadingPDF] = useState(false);
+  const [daftarInstansi, setDaftarInstansi] = useState({ internal: [], eksternal: [], lainnya: [] });
+  const [formPDF, setFormPDF] = useState({
+    filter_instansi: '',
+    filter_tipe: '',
+    pola_ttd: '1',
+    ttd: [{ label: 'Ketua Panitia', jabatan: '', nama: '' }]
+  });
+
   // Sesi Multi-Acara
   const [daftarAcara, setDaftarAcara] = useState([]);
   const [idAcaraSelected, setIdAcaraSelected] = useState('');
@@ -258,6 +270,94 @@ function Dashboard({ password, onLogout }) {
       tampilFeedback('error', err.message || 'Gagal mereset audit log.');
     }
     setResetConfirm(false);
+  };
+
+  // ── Fungsi PDF Laporan Kehadiran ──────────────────────────────────────────
+
+  const bukaModalPDF = async (jenis) => {
+    setJenisPDF(jenis);
+    setFormPDF({ filter_instansi: '', filter_tipe: '', pola_ttd: '1', ttd: [{ label: 'Ketua Panitia', jabatan: '', nama: '' }] });
+    setModalPDF(true);
+    const acaraAktif = daftarAcara.find(ac => ac.id === idAcaraSelected);
+    if (!acaraAktif) return;
+    try {
+      const res = await fetch(
+        `/api/admin/instansi-list?id_acara=${acaraAktif.id}`,
+        { headers: getAuthHeader(password) }
+      );
+      const data = await res.json();
+      if (data.sukses) setDaftarInstansi({ internal: [], eksternal: [], lainnya: [], ...data.data });
+    } catch (err) {
+      console.error('Gagal fetch instansi:', err);
+    }
+  };
+
+  const handlePolaTTD = (pola) => {
+    let ttdBaru = [];
+    if (pola === '1') {
+      ttdBaru = [{ label: 'Ketua Panitia', jabatan: '', nama: '' }];
+    } else if (pola === '2') {
+      ttdBaru = [
+        { label: 'Mengetahui', jabatan: '', nama: '' },
+        { label: 'Ketua Panitia', jabatan: '', nama: '' }
+      ];
+    }
+    setFormPDF(prev => ({ ...prev, pola_ttd: pola, ttd: ttdBaru }));
+  };
+
+  const handleTTDChange = (index, field, value) => {
+    setFormPDF(prev => {
+      const ttdBaru = [...prev.ttd];
+      ttdBaru[index] = { ...ttdBaru[index], [field]: value };
+      return { ...prev, ttd: ttdBaru };
+    });
+  };
+
+  const generatePDF = async () => {
+    const acaraAktif = daftarAcara.find(ac => ac.id === idAcaraSelected);
+    if (!acaraAktif) return;
+    setLoadingPDF(true);
+    try {
+      const endpoint = jenisPDF === 'daftar-hadir'
+        ? '/api/admin/pdf-daftar-hadir'
+        : '/api/admin/pdf-rekap-kehadiran';
+
+      const reqBody = jenisPDF === 'daftar-hadir'
+          ? { id_acara: acaraAktif.id, filter_instansi: formPDF.filter_instansi, filter_tipe: formPDF.filter_tipe }
+          : { id_acara: acaraAktif.id, ...formPDF };
+
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { ...getAuthHeader(password), 'Content-Type': 'application/json' },
+        body: JSON.stringify(reqBody)
+      });
+
+      if (!res.ok) {
+        let errMsg = 'Gagal generate PDF';
+        try { const errData = await res.json(); errMsg = errData.pesan || errMsg; } catch {}
+        tampilFeedback('error', errMsg);
+        return;
+      }
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const namaFile = jenisPDF === 'daftar-hadir'
+        ? `daftar-peserta-${acaraAktif.kode_acara}.pdf`
+        : `rekap-kehadiran-${acaraAktif.kode_acara}.pdf`;
+      a.href = url;
+      a.download = namaFile;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      setModalPDF(false);
+      tampilFeedback('success', `PDF berhasil diunduh: ${namaFile}`);
+    } catch (err) {
+      tampilFeedback('error', 'Terjadi kesalahan: ' + err.message);
+    } finally {
+      setLoadingPDF(false);
+    }
   };
 
   useEffect(() => {
@@ -452,6 +552,24 @@ function Dashboard({ password, onLogout }) {
                     <TombolPrimer onClick={handleBackup} varian="primer" icon="💾">
                       Backup Database
                     </TombolPrimer>
+
+                    {/* Tombol PDF — dengan deskripsi perbedaan */}
+                    <div className="flex flex-col sm:flex-row gap-3">
+                      <button
+                        onClick={() => bukaModalPDF('daftar-hadir')}
+                        className="group flex flex-col items-start px-5 py-3 rounded-xl border-2 border-[#6B0F1A] text-[#6B0F1A] hover:bg-[#6B0F1A] hover:text-white transition-all"
+                      >
+                        <span className="text-sm font-bold flex items-center gap-2">📋 Daftar Peserta</span>
+                        <span className="text-[10px] font-normal opacity-70 group-hover:opacity-90 mt-0.5">Koordinasi panitia · nama, instansi & No. HP</span>
+                      </button>
+                      <button
+                        onClick={() => bukaModalPDF('rekap-kehadiran')}
+                        className="group flex flex-col items-start px-5 py-3 rounded-xl border-2 border-[#1D4ED8] text-[#1D4ED8] hover:bg-[#1D4ED8] hover:text-white transition-all"
+                      >
+                        <span className="text-sm font-bold flex items-center gap-2">📊 Rekap Kehadiran</span>
+                        <span className="text-[10px] font-normal opacity-70 group-hover:opacity-90 mt-0.5">Status real-time · statistik kehadiran</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -609,6 +727,229 @@ function Dashboard({ password, onLogout }) {
               onKonfirmasi={handleResetAuditLog}
               onBatal={() => setResetConfirm(false)}
             />
+
+            {/* ── MODAL PDF LAPORAN KEHADIRAN ─────────────────────────────── */}
+            {modalPDF && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+                <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+
+                  {/* Header Modal */}
+                  <div className={`flex items-center justify-between p-5 border-b border-gray-200 ${
+                    jenisPDF === 'daftar-hadir' ? 'bg-[#FFF5F5]' : 'bg-[#EFF6FF]'
+                  }`}>
+                    <div>
+                      <h3 className="font-bold text-lg text-gray-800">
+                        {jenisPDF === 'daftar-hadir' ? '📋 Daftar Peserta Terdaftar' : '📊 Rekap Kehadiran Peserta'}
+                      </h3>
+                      <p className="text-xs mt-1 text-gray-500">
+                        {jenisPDF === 'daftar-hadir'
+                          ? 'Dokumen koordinasi panitia — daftar peserta terdaftar beserta No. HP untuk komunikasi lapangan'
+                          : 'Laporan kehadiran real-time dengan status, jam hadir & ringkasan statistik'}
+                      </p>
+                      {/* Badge perbedaan fitur */}
+                      <div className="flex gap-2 mt-2 flex-wrap">
+                        {jenisPDF === 'daftar-hadir' ? (
+                          <>
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-semibold">✓ No. Reg & No. HP</span>
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-semibold">✓ Peserta Aktif Saja</span>
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 font-semibold">✗ Tanpa Status Kehadiran</span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-semibold">✓ Status Real-time</span>
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-semibold">✓ Jam Check-in</span>
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 font-semibold">✓ Statistik Kehadiran</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setModalPDF(false)}
+                      className="text-gray-400 hover:text-gray-700 text-xl font-bold leading-none ml-4 flex-shrink-0"
+                    >✕</button>
+                  </div>
+
+                  <div className="p-5 space-y-5">
+
+                    {/* BAGIAN 1: Filter Instansi */}
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        Filter Instansi / Wilayah
+                      </label>
+                      <select
+                        value={formPDF.filter_instansi}
+                        onChange={(e) => setFormPDF(prev => ({ ...prev, filter_instansi: e.target.value }))}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#6B0F1A]"
+                      >
+                        {/* Default: semua */}
+                        <option value="">── Semua Instansi ──</option>
+
+                        {/* Shortcut per kategori */}
+                        {(daftarInstansi.internal?.length > 0 || 
+                          daftarInstansi.eksternal?.length > 0 || 
+                          daftarInstansi.lainnya?.length > 0) && (
+                          <optgroup label="── Filter Per Kategori ──">
+                            {daftarInstansi.internal?.length > 0 && (
+                              <option value="__INTERNAL_SEMUA__">
+                                🏛️ Semua Internal KPU ({daftarInstansi.internal.length} instansi)
+                              </option>
+                            )}
+                            {daftarInstansi.eksternal?.length > 0 && (
+                              <option value="__EKSTERNAL_SEMUA__">
+                                🤝 Semua Eksternal Resmi ({daftarInstansi.eksternal.length} instansi)
+                              </option>
+                            )}
+                            {daftarInstansi.lainnya?.length > 0 && (
+                              <option value="__LAINNYA__">
+                                📋 Semua Instansi Lainnya ({daftarInstansi.lainnya.length} instansi)
+                              </option>
+                            )}
+                          </optgroup>
+                        )}
+
+                        {/* Instansi spesifik internal */}
+                        {daftarInstansi.internal?.length > 0 && (
+                          <optgroup label="── Internal KPU (Spesifik) ──">
+                            {daftarInstansi.internal.map(inst => (
+                              <option key={inst} value={inst}>{inst}</option>
+                            ))}
+                          </optgroup>
+                        )}
+
+                        {/* Instansi spesifik eksternal resmi */}
+                        {daftarInstansi.eksternal?.length > 0 && (
+                          <optgroup label="── Eksternal Resmi (Spesifik) ──">
+                            {daftarInstansi.eksternal.map(inst => (
+                              <option key={inst} value={inst}>{inst}</option>
+                            ))}
+                          </optgroup>
+                        )}
+
+                        {/* Instansi lainnya spesifik */}
+                        {daftarInstansi.lainnya?.length > 0 && (
+                          <optgroup label="── Instansi Lainnya (Spesifik) ──">
+                            {daftarInstansi.lainnya.map(inst => (
+                              <option key={inst} value={inst}>{inst}</option>
+                            ))}
+                          </optgroup>
+                        )}
+                      </select>
+                      <p className="text-xs text-gray-500 mt-1">Pilih kategori atau instansi spesifik</p>
+                    </div>
+
+                    {/* BAGIAN 2: Filter Tipe Peserta */}
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        Filter Tipe Peserta
+                      </label>
+                      <select
+                        value={formPDF.filter_tipe}
+                        onChange={(e) => setFormPDF(prev => ({ ...prev, filter_tipe: e.target.value }))}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#6B0F1A]"
+                      >
+                        <option value="">Semua Tipe</option>
+                        <option value="internal">Internal KPU</option>
+                        <option value="eksternal">Eksternal</option>
+                      </select>
+                    </div>
+
+                    {/* DIVIDER */}
+                    <hr className="border-gray-200" />
+
+                    {/* BAGIAN 3: Pola Tanda Tangan — hanya untuk Rekap Kehadiran */}
+                    {jenisPDF === 'rekap-kehadiran' && (
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        Pola Tanda Tangan
+                      </label>
+                      <div className="flex gap-3">
+                        {[
+                          { val: '0', label: 'Tanpa TTD' },
+                          { val: '1', label: '1 Penanda Tangan' },
+                          { val: '2', label: '2 Penanda Tangan' },
+                        ].map(opt => (
+                          <button
+                            key={opt.val}
+                            type="button"
+                            onClick={() => handlePolaTTD(opt.val)}
+                            className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium border transition-all ${
+                              formPDF.pola_ttd === opt.val
+                                ? 'bg-[#6B0F1A] text-white border-[#6B0F1A]'
+                                : 'bg-white text-gray-600 border-gray-300 hover:border-[#6B0F1A]'
+                            }`}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    )}
+
+                    {/* BAGIAN 4: Form Input TTD (hanya untuk Rekap Kehadiran) */}
+                    {jenisPDF === 'rekap-kehadiran' && formPDF.pola_ttd !== '0' && formPDF.ttd.map((ttd, idx) => (
+                      <div key={idx} className="bg-gray-50 rounded-lg p-4 space-y-3 border border-gray-200">
+                        <p className="text-sm font-semibold text-[#6B0F1A]">
+                          {formPDF.pola_ttd === '2'
+                            ? (idx === 0 ? '← Kiri (Mengetahui)' : '→ Kanan (Ketua Panitia)')
+                            : 'Penanda Tangan'}
+                        </p>
+                        <div>
+                          <label className="text-xs text-gray-600 mb-1 block">Label (contoh: Ketua Panitia)</label>
+                          <input
+                            type="text"
+                            value={ttd.label}
+                            onChange={(e) => handleTTDChange(idx, 'label', e.target.value)}
+                            placeholder="Ketua Panitia"
+                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#6B0F1A]"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-600 mb-1 block">Jabatan Lengkap</label>
+                          <input
+                            type="text"
+                            value={ttd.jabatan}
+                            onChange={(e) => handleTTDChange(idx, 'jabatan', e.target.value)}
+                            placeholder="Kepala Sub Bagian Data dan Informasi"
+                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#6B0F1A]"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-600 mb-1 block">Nama Lengkap</label>
+                          <input
+                            type="text"
+                            value={ttd.nama}
+                            onChange={(e) => handleTTDChange(idx, 'nama', e.target.value)}
+                            placeholder="Ahmad Fauzi, S.Kom"
+                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#6B0F1A]"
+                          />
+                        </div>
+                      </div>
+                    ))}
+
+                  </div>
+
+                  {/* Footer Modal */}
+                  <div className="flex gap-3 p-5 border-t border-gray-200">
+                    <button
+                      onClick={() => setModalPDF(false)}
+                      className="flex-1 py-2.5 px-4 rounded-lg border border-gray-300 text-gray-700 text-sm font-medium hover:bg-gray-50 transition-all"
+                    >
+                      Batal
+                    </button>
+                    <button
+                      onClick={generatePDF}
+                      disabled={loadingPDF}
+                      className="flex-1 py-2.5 px-4 rounded-lg bg-[#6B0F1A] text-white text-sm font-bold hover:bg-[#8B1A2A] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {loadingPDF
+                        ? '⏳ Generating...'
+                        : `📄 Unduh ${jenisPDF === 'daftar-hadir' ? 'Daftar Peserta' : 'Rekap Kehadiran'}`}
+                    </button>
+                  </div>
+
+                </div>
+              </div>
+            )}
 
           </div>
         </main>

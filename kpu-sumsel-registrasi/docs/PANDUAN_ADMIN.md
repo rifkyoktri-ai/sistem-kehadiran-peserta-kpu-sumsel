@@ -6,13 +6,13 @@
 - Masukkan password pada form login yang muncul.
 
 ## Mengganti Password
-1. Buka file `backend/constants/index.js`.
+1. Buka file `.env` di dalam folder `backend/`. (Jika belum ada, copy dari `.env.example`).
 2. Temukan baris:
-   ```js
-   const PASSWORD_ADMIN = 'KPUAdmin@Sumsel26';
+   ```env
+   PASSWORD_ADMIN=KPUAdmin@Sumsel26
    ```
-3. Ganti nilai string dengan password baru.
-4. Simpan file dan restart backend (`node server.js`).
+3. Ganti nilai di sebelah kanan sama dengan (`=`) dengan password baru Anda tanpa tanda kutip.
+4. Simpan file dan restart backend (jika menggunakan PM2: `pm2 restart kpu-sumsel`, atau restart service Windows).
 
 ## Memantau Rekap Kehadiran Real‑time
 - Pada tab **Dashboard Rekap** terlihat empat kartu statistik:

@@ -35,4 +35,37 @@ function normalizePhone(phone) {
   return digits;
 }
 
-module.exports = { generateIdPeserta, normalizePhone };
+function menentukanKategoriInstansi(instansi) {
+  const { VALID_INSTANSI, VALID_INSTANSI_EKSTERNAL } = require('../constants');
+  const upper = (instansi || '').toUpperCase().trim();
+  const setInternal = new Set(
+    VALID_INSTANSI.filter(i => i !== 'Lainnya').map(i => i.toUpperCase())
+  );
+  const setEksternal = new Set(
+    VALID_INSTANSI_EKSTERNAL.filter(i => i !== 'Lainnya').map(i => i.toUpperCase())
+  );
+  if (setInternal.has(upper)) return 'internal_kpu';
+  if (setEksternal.has(upper)) return 'eksternal';
+  return 'lainnya';
+}
+
+/**
+ * Mendapatkan stempel waktu saat ini terformat YYYY-MM-DD HH:mm:ss pada zona Asia/Jakarta (WIB).
+ */
+function getWaktuWIB() {
+  const d = new Date();
+  const options = { timeZone: 'Asia/Jakarta', hour12: false };
+  
+  const tahun = d.toLocaleString('en-US', { ...options, year: 'numeric' });
+  const bulan = String(d.toLocaleString('en-US', { ...options, month: 'numeric' })).padStart(2, '0');
+  const tanggal = String(d.toLocaleString('en-US', { ...options, day: 'numeric' })).padStart(2, '0');
+  
+  const jamVal = d.toLocaleString('en-US', { ...options, hour: 'numeric' });
+  const jam = String(jamVal === '24' ? '00' : jamVal).padStart(2, '0');
+  const menit = String(d.toLocaleString('en-US', { ...options, minute: 'numeric' })).padStart(2, '0');
+  const detik = String(d.toLocaleString('en-US', { ...options, second: 'numeric' })).padStart(2, '0');
+  
+  return `${tahun}-${bulan}-${tanggal} ${jam}:${menit}:${detik}`;
+}
+
+module.exports = { generateIdPeserta, normalizePhone, menentukanKategoriInstansi, getWaktuWIB };

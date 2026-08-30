@@ -297,6 +297,50 @@ function jalankanMigrasi() {
     logger.error('[MIGRASI] Gagal menambah kolom tipe_peserta:', err.message);
   }
 
+  // Migrasi: tambah kolom kategori_instansi jika belum ada
+  try {
+    const colsPesertaInfo = db.prepare('PRAGMA table_info(peserta)').all();
+    const sudahAdaKategori = colsPesertaInfo.some(c => c.name === 'kategori_instansi');
+    if (!sudahAdaKategori) {
+      db.exec("ALTER TABLE peserta ADD COLUMN kategori_instansi TEXT DEFAULT 'internal_kpu'");
+      logger.info('[MIGRASI] Kolom kategori_instansi berhasil ditambahkan ke tabel peserta.');
+
+      // Isi data untuk peserta yang sudah ada berdasarkan constants
+      const { VALID_INSTANSI, VALID_INSTANSI_EKSTERNAL } = require('../constants');
+      const setInternal = new Set(VALID_INSTANSI.filter(i => i !== 'Lainnya').map(i => i.toUpperCase()));
+      const setEksternal = new Set(VALID_INSTANSI_EKSTERNAL.filter(i => i !== 'Lainnya').map(i => i.toUpperCase()));
+
+      const semuaPeserta = db.prepare('SELECT id, instansi FROM peserta').all();
+      const stmtUpdate = db.prepare('UPDATE peserta SET kategori_instansi = ? WHERE id = ?');
+
+      db.transaction(() => {
+        let jumlahInternal = 0;
+        let jumlahEksternal = 0;
+        let jumlahLainnya = 0;
+
+        for (const p of semuaPeserta) {
+          const instansiUpper = (p.instansi || '').toUpperCase().trim();
+          let kategori;
+          if (setInternal.has(instansiUpper)) {
+            kategori = 'internal_kpu';
+            jumlahInternal++;
+          } else if (setEksternal.has(instansiUpper)) {
+            kategori = 'eksternal';
+            jumlahEksternal++;
+          } else {
+            kategori = 'lainnya';
+            jumlahLainnya++;
+          }
+          stmtUpdate.run(kategori, p.id);
+        }
+
+        logger.info(`[MIGRASI] Selesai mengisi kategori_instansi: internal_kpu: ${jumlahInternal}, eksternal: ${jumlahEksternal}, lainnya: ${jumlahLainnya}`);
+      })();
+    }
+  } catch (err) {
+    logger.error('[MIGRASI] Gagal menambah kolom kategori_instansi:', err.message);
+  }
+
   // Migrasi: tambah kolom foto_path jika belum ada
   try {
     const colsPeserta2 = db.prepare('PRAGMA table_info(peserta)').all();
@@ -384,6 +428,7 @@ function jalankanMigrasi() {
     db.exec('CREATE INDEX IF NOT EXISTS idx_peserta_nomor_urut ON peserta(nomor_urut)');
     db.exec('CREATE INDEX IF NOT EXISTS idx_peserta_acara ON peserta(acara_id)');
     db.exec('CREATE INDEX IF NOT EXISTS idx_peserta_tipe ON peserta(tipe_peserta)');
+    db.exec('CREATE INDEX IF NOT EXISTS idx_peserta_kategori ON peserta(kategori_instansi)');
     db.exec('CREATE INDEX IF NOT EXISTS idx_log_peserta ON audit_log(id_peserta)');
     db.exec('CREATE INDEX IF NOT EXISTS idx_log_aksi ON audit_log(aksi)');
     db.exec('CREATE INDEX IF NOT EXISTS idx_log_acara ON audit_log(acara_id)');
@@ -393,6 +438,7 @@ function jalankanMigrasi() {
     db.exec('CREATE INDEX IF NOT EXISTS idx_peserta_nomor_urut ON peserta(nomor_urut)');
     db.exec('CREATE INDEX IF NOT EXISTS idx_peserta_acara ON peserta(acara_id)');
     db.exec('CREATE INDEX IF NOT EXISTS idx_peserta_tipe ON peserta(tipe_peserta)');
+    db.exec('CREATE INDEX IF NOT EXISTS idx_peserta_kategori ON peserta(kategori_instansi)');
     db.exec('CREATE INDEX IF NOT EXISTS idx_log_peserta ON audit_log(id_peserta)');
     db.exec('CREATE INDEX IF NOT EXISTS idx_log_aksi ON audit_log(aksi)');
     db.exec('CREATE INDEX IF NOT EXISTS idx_log_acara ON audit_log(acara_id)');

@@ -91,6 +91,7 @@ app.use(cors({
 }));
 
 app.use(express.json({ limit: '5mb' }));
+app.use(express.urlencoded({ extended: true, limit: '5mb' }));
 
 // ── Rate Limiting ───────────────────────────────────────────────────────────
 const loginLimiter = rateLimit({
@@ -218,6 +219,14 @@ process.on('unhandledRejection', (reason, promise) => {
   console.error('reason:', reason);
   console.error('stack:', reason?.stack);
   console.error('============================');
+});
+
+// Global uncaught exception handler
+process.on('uncaughtException', (err) => {
+  console.error('=== UNCAUGHT EXCEPTION ===');
+  console.error('message:', err.message);
+  console.error('stack:', err.stack);
+  console.error('==========================');
 });
 
 // Graceful shutdown

@@ -3,7 +3,7 @@
 // =============================================================================
 
 const express = require('express');
-const { body, validationResult } = require('express-validator');
+const { body } = require('express-validator');
 const { validate } = require('../middleware/validationResult');
 const { VALID_TIPE_PESERTA } = require('../constants');
 const { authPetugas } = require('../middleware/auth');

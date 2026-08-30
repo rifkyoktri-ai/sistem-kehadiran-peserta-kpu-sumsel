@@ -17,8 +17,3 @@ export const WARNA_STATUS = {
   membatalkan: 'bg-red-100 text-red-800 border-red-200',
   digantikan : 'bg-gray-100 text-gray-600 border-gray-200',
 };
-
-export const NAMA_APLIKASI = 'Sistem Registrasi KPU Sumsel';
-export const KPU_RED  = '#6B0F1A';
-export const KPU_BLUE = '#4A0A10';
-export const KPU_GOLD = '#C8930A';

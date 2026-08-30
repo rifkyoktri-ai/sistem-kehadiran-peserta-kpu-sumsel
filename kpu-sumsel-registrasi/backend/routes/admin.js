@@ -10,8 +10,8 @@ const { body, param } = require('express-validator');
 const { validate } = require('../middleware/validationResult');
 const ctrlPeserta = require('../controllers/adminPesertaController');
 const ctrlAcara = require('../controllers/adminAcaraController');
+const ctrlPDF = require('../controllers/adminController');
 const logger = require('../utils/logger');
-// VALID_INSTANSI dan VALID_JABATAN tidak digunakan di route ini
 
 const router = express.Router();
 
@@ -65,6 +65,11 @@ router.get('/acara', authAdmin, ctrlAcara.ambilSemuaAcara);
 router.post('/acara', authAdmin, ctrlAcara.tambahAcara);
 router.put('/acara/aktif', authAdmin, ctrlAcara.setAcaraAktif);
 router.delete('/acara/:id', authAdmin, ctrlAcara.hapusAcara);
+
+// Endpoint PDF Laporan Kehadiran
+router.get('/instansi-list', authAdmin, ctrlPDF.getInstansiList);
+router.post('/pdf-daftar-hadir', authAdmin, ctrlPDF.generatePDFDaftarHadir);
+router.post('/pdf-rekap-kehadiran', authAdmin, ctrlPDF.generatePDFRekapKehadiran);
 
 // Backup database (dengan verifikasi + rotasi)
 router.get('/backup', authAdmin, async (req, res) => {

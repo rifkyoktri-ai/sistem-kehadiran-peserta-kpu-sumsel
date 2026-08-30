@@ -2,6 +2,8 @@
 // CONTROLLER ADMIN PESERTA — Operasi CRUD & Status Peserta oleh Admin (Multi-Acara)
 // =============================================================================
 
+const fs = require('fs');
+const path = require('path');
 const { ambilKoneksiDB } = require('../database/db');
 const { STATUS_PESERTA, AKSI_LOG } = require('../constants');
 const { catatAuditLog } = require('../utils/auditLog');
@@ -85,6 +87,14 @@ exports.editPeserta = (req, res) => {
         perubahan[field] = { lama: peserta[field], baru: bersih[field] };
         setClause.push(`${field} = ?`);
         params.push(bersih[field]);
+        
+        if (field === 'instansi') {
+          const { menentukanKategoriInstansi } = require('../utils/helpers');
+          const kategoriBaru = menentukanKategoriInstansi(bersih.instansi);
+          perubahan['kategori_instansi'] = { lama: peserta.kategori_instansi, baru: kategoriBaru };
+          setClause.push('kategori_instansi = ?');
+          params.push(kategoriBaru);
+        }
       }
     }
 
@@ -166,10 +176,13 @@ exports.gantiPeserta = (req, res) => {
       db.prepare("UPDATE peserta SET status = ?, id_pengganti = ? WHERE id = ?")
         .run(STATUS_PESERTA.DIGANTIKAN, idBaru, id_peserta_lama);
 
+      const { menentukanKategoriInstansi } = require('../utils/helpers');
+      const kategoriInstansi = menentukanKategoriInstansi(instansi_baru);
+
       db.prepare(`
-        INSERT INTO peserta (id, acara_id, nomor_urut, tipe_peserta, nama_lengkap, instansi, jabatan, no_hp, email, id_digantikan, waktu_daftar)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(idBaru, pesertaLama.acara_id, nomorUrutStr, tipe_peserta, nama_baru, instansi_baru, jabatan_baru, no_hp_baru, pesertaLama.email || '', id_peserta_lama, waktuSekarang);
+        INSERT INTO peserta (id, acara_id, nomor_urut, tipe_peserta, nama_lengkap, instansi, kategori_instansi, jabatan, no_hp, email, id_digantikan, waktu_daftar)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(idBaru, pesertaLama.acara_id, nomorUrutStr, tipe_peserta, nama_baru, instansi_baru, kategoriInstansi, jabatan_baru, no_hp_baru, pesertaLama.email || '', id_peserta_lama, waktuSekarang);
 
       catatAuditLog(db, req.aktor, AKSI_LOG.GANTI_PESERTA, id_peserta_lama, JSON.stringify({ digantikan_oleh: idBaru }), pesertaLama.acara_id);
       catatAuditLog(db, req.aktor, AKSI_LOG.GANTI_PESERTA, idBaru, JSON.stringify({ menggantikan: id_peserta_lama }), pesertaLama.acara_id);
@@ -201,6 +214,18 @@ exports.hapusPeserta = (req, res) => {
       JSON.stringify({ nama: peserta.nama_lengkap, alasan: req.body.alasan || '' }),
       peserta.acara_id
     );
+
+    // Hapus berkas fisik foto jika ada
+    if (peserta.foto_path) {
+      try {
+        const fullFotoPath = path.join(__dirname, '..', peserta.foto_path);
+        if (fs.existsSync(fullFotoPath)) {
+          fs.unlinkSync(fullFotoPath);
+        }
+      } catch (err) {
+        // Abaikan jika gagal hapus file fisik agar transaksi tetap berjalan
+      }
+    }
 
     db.prepare(`DELETE FROM peserta WHERE id = ?`).run(req.params.id);
 

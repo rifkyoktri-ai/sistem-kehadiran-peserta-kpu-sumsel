@@ -37,7 +37,7 @@ npm install
 
 ---
 
-## Cara Menjalankan
+## Cara Menjalankan (Mode Development)
 
 ### Jalankan Backend (Terminal 1)
 ```bash
@@ -52,6 +52,20 @@ cd frontend
 npm run dev
 ```
 Aplikasi berjalan di: `http://localhost:5173`
+
+---
+
+## Deployment (Production 1-Klik / Windows Service)
+
+Sistem sudah dilengkapi skrip otomatis untuk menyatukan Frontend dan Backend dalam **satu port tunggal (8080)** dan mendaftarkannya sebagai **Windows Service** agar berjalan di latar belakang otomatis saat PC menyala.
+
+### Cara Deploy:
+1. Pastikan Anda berada di direktori root aplikasi.
+2. Jalankan skrip `DEPLOY-WINDOWS.bat` dengan klik dua kali (otomatis meminta hak Admin).
+3. Skrip akan melakukan instalasi *dependencies*, *build frontend*, dan menginstal *Windows Service*.
+4. Setelah sukses, buka browser dan akses `http://localhost:8080`.
+
+*(Untuk uninstall layanan, jalankan `node backend/uninstall-service.js` di terminal Administrator).*
 
 ---
 

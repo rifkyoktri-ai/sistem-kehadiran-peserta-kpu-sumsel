@@ -18,24 +18,3 @@ export function formatTanggal(isoString) {
     timeZone: 'Asia/Jakarta',
   }) + ' WIB';
 }
-
-/**
- * Memformat nomor HP menjadi format yang lebih mudah dibaca.
- * Contoh: "081234567890" → "0812-3456-7890"
- */
-export function formatNomorHP(noHP) {
-  if (!noHP) return '-';
-  const bersih = noHP.replace(/\D/g, '');
-  return bersih.replace(/(\d{4})(\d{4})(\d+)/, '$1-$2-$3');
-}
-
-/**
- * Menghasilkan nama file yang aman untuk download.
- * Mengganti spasi dengan underscore dan hapus karakter khusus.
- */
-export function formatNamaFile(teks) {
-  return teks
-    .toLowerCase()
-    .replace(/\s+/g, '_')
-    .replace(/[^a-z0-9_]/g, '');
-}

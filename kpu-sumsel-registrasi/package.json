@@ -1,0 +1,16 @@
+{
+  "name": "kpu-sumsel-registrasi",
+  "version": "1.0.0",
+  "description": "Sistem Registrasi dan Presensi KPU Provinsi Sumatera Selatan",
+  "scripts": {
+    "build:full": "cd frontend && npm install && npm run build && cd ..",
+    "start": "cd backend && node server.js",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "install:all": "cd backend && npm install && cd ../frontend && npm install && cd ..",
+    "deploy": "npm run build:full && cd backend && node install-service.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

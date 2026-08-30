@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import TombolPrimer from './TombolPrimer';
 
 export default function QRScanner({ onScan }) {
@@ -7,6 +7,14 @@ export default function QRScanner({ onScan }) {
   const [torch, setTorch] = useState(false);
   const readerRef = useRef(null);
   const scannerRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (scannerRef.current) {
+        scannerRef.current.stop().catch(() => {});
+      }
+    };
+  }, []);
 
   const mulaiScan = async () => {
     setError('');

@@ -2,7 +2,7 @@
 
 ## Akses Petugas
 
-- **URL Check-in**: `http://localhost:5173/checkin`
+- **URL Check-in**: `http://localhost:8080/checkin` (atau IP Komputer Server Anda)
 - **Password**: Sesuai yang diberikan koordinator
 - **Header API**: `x-password: <password_petugas>`
 
@@ -41,7 +41,8 @@ Body: {
   "instansi": "Nama Instansi",
   "jabatan": "Jabatan",
   "email": "email@instansi.go.id",
-  "no_hp": "081234567890"
+  "no_hp": "081234567890",
+  "foto_base64": "data:image/jpeg;base64,..."
 }
 ```
 
