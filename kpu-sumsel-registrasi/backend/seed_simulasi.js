@@ -13,10 +13,10 @@ async function seedSimulasi() {
       id: 'SIM-KPU-0001',
       nomor_urut: 'KPU-0001',
       tipe_peserta: 'internal',
-      nama_lengkap: 'Ahmad Fauzi, S.Kom',
-      instansi: 'KPU PALEMBANG',
+      nama_lengkap: 'Andika Pranata Wijaya, S.Sos.,M.Si',
+      instansi: 'KPU SUMATERA SELATAN',
       kategori_instansi: 'internal_kpu',
-      jabatan: 'Ketua KPU Palembang',
+      jabatan: 'Ketua KPU Sumatera Selatan',
       status: 'hadir',
       waktu_checkin: new Date(Date.now() - 3600000 * 2).toISOString(), // 2 jam lalu
       adalah_walkin: 0
